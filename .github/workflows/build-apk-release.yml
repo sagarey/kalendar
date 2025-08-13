@@ -77,10 +77,6 @@ jobs:
         run: |
           ./gradlew assemble${{ steps.flavor.outputs.flavor }}Debug
 
-      - name: Build APK (Release - debug signed)
-        run: |
-          ./gradlew assemble${{ steps.flavor.outputs.flavor }}Release -Pandroid.injected.signing.store.file=$ANDROID_HOME/debug.keystore -Pandroid.injected.signing.store.password=android -Pandroid.injected.signing.key.alias=androiddebugkey -Pandroid.injected.signing.key.password=android
-
       - name: Rename APK files
         run: |
           mkdir -p dist
@@ -119,14 +115,13 @@ jobs:
           
           ### APK 文件说明
           - **Debug版本**: 用于开发和测试，包含调试信息，使用调试签名
-          - **Release版本**: 生产版本，已优化并使用调试签名
           
           ### 安装说明
           1. 下载对应的 APK 文件
           2. 在 Android 设备上启用"未知来源"应用安装
           3. 安装 APK 文件
           
-          > **注意**: 两个版本的 APK 都使用调试签名，安装时需要启用"未知来源"
+          > **注意**: APK 使用调试签名，安装时需要启用"未知来源"
           
           ### 更新日志
           请参考 [CHANGELOG.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md) 获取详细更新信息。
