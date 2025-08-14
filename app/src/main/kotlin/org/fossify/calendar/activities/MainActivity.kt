@@ -8,6 +8,7 @@ import android.graphics.drawable.Icon
 import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.provider.ContactsContract.CommonDataKinds
 import android.provider.ContactsContract.Contacts
 import android.provider.ContactsContract.Data
@@ -285,6 +286,8 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
 
             if (!mainMenu.isSearchOpen) {
                 refreshMenuItems()
+                // 再次尝试调整搜索图标位置，确保在UI更新后生效
+                adjustSearchIconPosition()
             }
         }
 
@@ -330,8 +333,8 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         mainMenu.toggleHideOnScroll(false)
         mainMenu.setupMenu()
         
-        // 将搜索按钮移到右侧，对齐其他按钮
-        moveSearchButtonToRight()
+        // 尝试调整搜索图标位置
+        adjustSearchIconPosition()
 
         mainMenu.onSearchTextChangedListener = { text ->
             searchQueryChanged(text)
@@ -422,33 +425,54 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         bottomItemAtRefresh = null
     }
 
-    private fun moveSearchButtonToRight() {
+    private fun adjustSearchIconPosition() {
         try {
-            val toolbar = binding.mainMenu.getToolbar()
-            
-            // 延迟执行以确保菜单已经完全加载
-            toolbar.post {
-                // 尝试通过反射或视图遍历找到搜索视图
-                for (i in 0 until toolbar.childCount) {
-                    val child = toolbar.getChildAt(i)
-                    if (child is androidx.appcompat.widget.ActionMenuView) {
-                        // 设置 ActionMenuView 的重力为右对齐
-                        child.gravity = android.view.Gravity.END
+            // 延迟执行以确保 MySearchMenu 完全初始化
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    val toolbar = binding.mainMenu.getToolbar()
+                    
+                    // 尝试通过反射或直接访问找到搜索图标并调整其位置
+                    val context = this@MainActivity
+                    
+                    // 方法1: 尝试通过 toolbar 的子视图找到搜索相关组件
+                    for (i in 0 until toolbar.childCount) {
+                        val child = toolbar.getChildAt(i)
                         
-                        // 遍历 ActionMenuView 的子视图
-                        for (j in 0 until child.childCount) {
-                            val menuChild = child.getChildAt(j)
-                            // 将搜索相关的视图对齐到右侧
-                            val layoutParams = menuChild.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
-                            layoutParams?.gravity = android.view.Gravity.END
+                        // 如果找到搜索相关的视图
+                        if (child.javaClass.name.contains("SearchView") || 
+                            child.javaClass.name.contains("search", ignoreCase = true)) {
+                            
+                            // 尝试将其移动到右侧
+                            val layoutParams = child.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
+                            layoutParams?.let { params ->
+                                params.gravity = android.view.Gravity.END
+                                child.layoutParams = params
+                            }
                         }
-                        break
+                        
+                        // 如果是 ActionMenuView，调整其内容
+                        if (child is androidx.appcompat.widget.ActionMenuView) {
+                            child.gravity = android.view.Gravity.END
+                        }
                     }
+                    
+                    // 方法2: 尝试通过 CSS 样式调整
+                    toolbar.post {
+                        val searchView = toolbar.findViewById<android.view.View>(androidx.appcompat.R.id.search_button)
+                        searchView?.let { view ->
+                            val params = view.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
+                            params?.gravity = android.view.Gravity.END
+                            view.layoutParams = params
+                        }
+                    }
+                    
+                } catch (e: Exception) {
+                    // 静默处理异常，不影响应用运行
                 }
-            }
+            }, 100)
         } catch (e: Exception) {
-            // 如果出现异常，记录但不影响应用正常运行
-            e.printStackTrace()
+            // 静默处理异常，不影响应用运行
         }
     }
 
