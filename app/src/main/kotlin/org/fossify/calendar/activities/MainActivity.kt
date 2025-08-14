@@ -329,6 +329,9 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         mainMenu.getToolbar().inflateMenu(R.menu.menu_main)
         mainMenu.toggleHideOnScroll(false)
         mainMenu.setupMenu()
+        
+        // 将搜索按钮移到右侧，对齐其他按钮
+        moveSearchButtonToRight()
 
         mainMenu.onSearchTextChangedListener = { text ->
             searchQueryChanged(text)
@@ -417,6 +420,36 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         maxFetchedSearchTS = 0L
         searchResultEvents.clear()
         bottomItemAtRefresh = null
+    }
+
+    private fun moveSearchButtonToRight() {
+        try {
+            val toolbar = binding.mainMenu.getToolbar()
+            
+            // 延迟执行以确保菜单已经完全加载
+            toolbar.post {
+                // 尝试通过反射或视图遍历找到搜索视图
+                for (i in 0 until toolbar.childCount) {
+                    val child = toolbar.getChildAt(i)
+                    if (child is androidx.appcompat.widget.ActionMenuView) {
+                        // 设置 ActionMenuView 的重力为右对齐
+                        child.gravity = android.view.Gravity.END
+                        
+                        // 遍历 ActionMenuView 的子视图
+                        for (j in 0 until child.childCount) {
+                            val menuChild = child.getChildAt(j)
+                            // 将搜索相关的视图对齐到右侧
+                            val layoutParams = menuChild.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
+                            layoutParams?.gravity = android.view.Gravity.END
+                        }
+                        break
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 如果出现异常，记录但不影响应用正常运行
+            e.printStackTrace()
+        }
     }
 
     private fun checkCalDAVUpdateListener() {
