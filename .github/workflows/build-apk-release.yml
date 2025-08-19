@@ -130,7 +130,7 @@ jobs:
           echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: Kalendar ${{ steps.version.outputs.version }}
