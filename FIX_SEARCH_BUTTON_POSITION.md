@@ -51,7 +51,7 @@ This PR fixes the issue where the search button appears on the left side of the 
 - **After**: Search button appears on the right side with proper error handling and logging
 
 ## Related Issue
-Fixes #[ISSUE_NUMBER] - Search button appears on the left side instead of right side
+Fixes #16 - Search button appears on the left side instead of right side
 
 ## Checklist
 - [x] Code follows the project's coding style

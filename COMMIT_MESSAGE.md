@@ -15,4 +15,4 @@ instead of the right side of the toolbar, improving user experience
 and following Material Design guidelines.
 
 Fixes: Search button positioning issue
-Related: #ISSUE_NUMBER
+Related: #16
