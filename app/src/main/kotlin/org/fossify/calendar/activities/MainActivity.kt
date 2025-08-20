@@ -432,9 +432,6 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
                 try {
                     val toolbar = binding.mainMenu.getToolbar()
                     
-                    // 尝试通过反射或直接访问找到搜索图标并调整其位置
-                    val context = this@MainActivity
-                    
                     // 方法1: 尝试通过 toolbar 的子视图找到搜索相关组件
                     for (i in 0 until toolbar.childCount) {
                         val child = toolbar.getChildAt(i)
@@ -448,31 +445,61 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
                             layoutParams?.let { params ->
                                 params.gravity = android.view.Gravity.END
                                 child.layoutParams = params
+                                android.util.Log.d("SearchButton", "Successfully positioned SearchView to right")
                             }
                         }
                         
                         // 如果是 ActionMenuView，调整其内容
                         if (child is androidx.appcompat.widget.ActionMenuView) {
                             child.gravity = android.view.Gravity.END
+                            android.util.Log.d("SearchButton", "Set ActionMenuView gravity to END")
                         }
                     }
                     
-                    // 方法2: 尝试通过 CSS 样式调整
+                    // 方法2: 尝试通过 ID 查找搜索按钮
                     toolbar.post {
-                        val searchView = toolbar.findViewById<android.view.View>(androidx.appcompat.R.id.search_button)
-                        searchView?.let { view ->
-                            val params = view.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
-                            params?.gravity = android.view.Gravity.END
-                            view.layoutParams = params
+                        try {
+                            val searchView = toolbar.findViewById<android.view.View>(androidx.appcompat.R.id.search_button)
+                            searchView?.let { view ->
+                                val params = view.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
+                                params?.gravity = android.view.Gravity.END
+                                view.layoutParams = params
+                                android.util.Log.d("SearchButton", "Successfully positioned search button via ID")
+                            } ?: run {
+                                android.util.Log.w("SearchButton", "Search button not found via ID")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.w("SearchButton", "Error finding search button via ID: ${e.message}")
+                        }
+                    }
+                    
+                    // 方法3: 尝试通过菜单项查找搜索视图
+                    toolbar.post {
+                        try {
+                            val menu = toolbar.menu
+                            val searchMenuItem = menu.findItem(R.id.search)
+                            searchMenuItem?.let { item ->
+                                val searchView = item.actionView as? androidx.appcompat.widget.SearchView
+                                searchView?.let { view ->
+                                    val params = view.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
+                                    params?.gravity = android.view.Gravity.END
+                                    view.layoutParams = params
+                                    android.util.Log.d("SearchButton", "Successfully positioned search view via menu item")
+                                }
+                            } ?: run {
+                                android.util.Log.w("SearchButton", "Search menu item not found")
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.w("SearchButton", "Error finding search view via menu item: ${e.message}")
                         }
                     }
                     
                 } catch (e: Exception) {
-                    // 静默处理异常，不影响应用运行
+                    android.util.Log.e("SearchButton", "Error in adjustSearchIconPosition: ${e.message}", e)
                 }
-            }, 100)
+            }, 200) // 增加延迟时间确保UI完全初始化
         } catch (e: Exception) {
-            // 静默处理异常，不影响应用运行
+            android.util.Log.e("SearchButton", "Error in adjustSearchIconPosition outer: ${e.message}", e)
         }
     }
 
