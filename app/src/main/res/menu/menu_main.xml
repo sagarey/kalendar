@@ -58,10 +58,5 @@
         android:icon="@drawable/ic_google_play_vector"
         android:title="@string/more_fossify_apps"
         app:showAsAction="ifRoom" />
-    <item
-        android:id="@+id/search"
-        android:icon="@drawable/ic_search_vector"
-        android:title="@string/search"
-        app:actionViewClass="androidx.appcompat.widget.SearchView"
-        app:showAsAction="collapseActionView|always" />
+
 </menu>

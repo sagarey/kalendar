@@ -286,8 +286,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
 
             if (!mainMenu.isSearchOpen) {
                 refreshMenuItems()
-                // 再次尝试调整搜索图标位置，确保在UI更新后生效
-                adjustSearchIconPosition()
+
             }
         }
 
@@ -333,8 +332,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         mainMenu.toggleHideOnScroll(false)
         mainMenu.setupMenu()
         
-        // 尝试调整搜索图标位置
-        adjustSearchIconPosition()
+
 
         mainMenu.onSearchTextChangedListener = { text ->
             searchQueryChanged(text)
@@ -425,30 +423,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         bottomItemAtRefresh = null
     }
 
-    private fun adjustSearchIconPosition() {
-        // Since the search button is now properly defined in menu_main.xml at the end of the menu,
-        // it should automatically appear on the right side. This function is kept for potential
-        // future customizations but simplified to avoid unnecessary complexity.
-        try {
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    val toolbar = binding.mainMenu.getToolbar()
-                    val menu = toolbar.menu
-                    val searchMenuItem = menu.findItem(R.id.search)
-                    
-                    if (searchMenuItem != null) {
-                        android.util.Log.d("SearchButton", "Search menu item found and positioned correctly")
-                    } else {
-                        android.util.Log.w("SearchButton", "Search menu item not found")
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("SearchButton", "Error in adjustSearchIconPosition: ${e.message}", e)
-                }
-            }, 100) // Reduced delay since less processing is needed
-        } catch (e: Exception) {
-            android.util.Log.e("SearchButton", "Error in adjustSearchIconPosition outer: ${e.message}", e)
-        }
-    }
+
 
     private fun checkCalDAVUpdateListener() {
         if (isNougatPlus()) {
