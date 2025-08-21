@@ -331,8 +331,6 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         mainMenu.getToolbar().inflateMenu(R.menu.menu_main)
         mainMenu.toggleHideOnScroll(false)
         mainMenu.setupMenu()
-        
-
 
         mainMenu.onSearchTextChangedListener = { text ->
             searchQueryChanged(text)
