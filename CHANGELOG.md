@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2025-08-20
+### Fixed
+- Optimized search button positioning implementation ([#18])
+- Improved code quality by removing complex search button positioning logic
+- Fixed duplicate XML attributes in menu configuration
+
 ## [1.5.0] - 2025-07-22
 ### Added
 - Holidays for Guatemala ([#682])
