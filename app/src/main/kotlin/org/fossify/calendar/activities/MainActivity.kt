@@ -1208,13 +1208,14 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
     }
 
     private fun searchQueryChanged(text: String) {
-        mLatestSearchQuery = text
+        mLatestSearchQuery = text.trim()
 
-        if (text.isNotEmpty() && binding.searchHolder.isGone()) {
+        if (mLatestSearchQuery.isNotEmpty() && binding.searchHolder.isGone()) {
             binding.searchHolder.fadeIn()
-        } else if (text.isEmpty()) {
+        } else if (mLatestSearchQuery.isEmpty()) {
             binding.searchHolder.fadeOut()
             binding.searchResultsList.adapter = null
+            searchResultEvents.clear()
         }
 
         val placeholderTextId = if (config.displayEventTypes.isEmpty()) {
@@ -1224,15 +1225,15 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         }
 
         binding.searchPlaceholder.setText(placeholderTextId)
-        binding.searchPlaceholder2.beVisibleIf(text.length == 1)
-        if (text.length >= 2) {
+        binding.searchPlaceholder2.beVisibleIf(mLatestSearchQuery.length == 1)
+        if (mLatestSearchQuery.length >= 2) {
             if (binding.searchResultsList.adapter == null) {
                 minFetchedSearchTS = DateTime().minusYears(2).seconds()
                 maxFetchedSearchTS = DateTime().plusYears(2).seconds()
             }
 
-            eventsHelper.getEvents(minFetchedSearchTS, maxFetchedSearchTS, searchQuery = text) { events ->
-                if (text == mLatestSearchQuery) {
+            eventsHelper.getEvents(minFetchedSearchTS, maxFetchedSearchTS, searchQuery = mLatestSearchQuery) { events ->
+                if (mLatestSearchQuery.isNotEmpty()) {
                     // if we have less than MIN_EVENTS_THRESHOLD events, search again by extending the time span
                     showSearchResultEvents(events, INITIAL_EVENTS)
 
@@ -1240,7 +1241,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
                         minFetchedSearchTS = 0L
                         maxFetchedSearchTS = MAX_SEARCH_YEAR
 
-                        eventsHelper.getEvents(minFetchedSearchTS, maxFetchedSearchTS, searchQuery = text) { events ->
+                        eventsHelper.getEvents(minFetchedSearchTS, maxFetchedSearchTS, searchQuery = mLatestSearchQuery) { events ->
                             events.forEach { event ->
                                 try {
                                     if (searchResultEvents.firstOrNull { it.id == event.id && it.startTS == event.startTS } == null) {
@@ -1255,7 +1256,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
                     }
                 }
             }
-        } else if (text.length == 1) {
+        } else if (mLatestSearchQuery.length == 1) {
             binding.searchPlaceholder.beVisible()
             binding.searchResultsList.beGone()
         }
