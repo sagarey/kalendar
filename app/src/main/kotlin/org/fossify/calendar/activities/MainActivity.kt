@@ -286,8 +286,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
 
             if (!mainMenu.isSearchOpen) {
                 refreshMenuItems()
-                // 再次尝试调整搜索图标位置，确保在UI更新后生效
-                adjustSearchIconPosition()
+
             }
         }
 
@@ -333,8 +332,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         mainMenu.toggleHideOnScroll(false)
         mainMenu.setupMenu()
         
-        // 尝试调整搜索图标位置
-        adjustSearchIconPosition()
+
 
         mainMenu.onSearchTextChangedListener = { text ->
             searchQueryChanged(text)
@@ -425,56 +423,7 @@ class MainActivity : SimpleActivity(), RefreshRecyclerViewListener {
         bottomItemAtRefresh = null
     }
 
-    private fun adjustSearchIconPosition() {
-        try {
-            // 延迟执行以确保 MySearchMenu 完全初始化
-            Handler(Looper.getMainLooper()).postDelayed({
-                try {
-                    val toolbar = binding.mainMenu.getToolbar()
-                    
-                    // 尝试通过反射或直接访问找到搜索图标并调整其位置
-                    val context = this@MainActivity
-                    
-                    // 方法1: 尝试通过 toolbar 的子视图找到搜索相关组件
-                    for (i in 0 until toolbar.childCount) {
-                        val child = toolbar.getChildAt(i)
-                        
-                        // 如果找到搜索相关的视图
-                        if (child.javaClass.name.contains("SearchView") || 
-                            child.javaClass.name.contains("search", ignoreCase = true)) {
-                            
-                            // 尝试将其移动到右侧
-                            val layoutParams = child.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
-                            layoutParams?.let { params ->
-                                params.gravity = android.view.Gravity.END
-                                child.layoutParams = params
-                            }
-                        }
-                        
-                        // 如果是 ActionMenuView，调整其内容
-                        if (child is androidx.appcompat.widget.ActionMenuView) {
-                            child.gravity = android.view.Gravity.END
-                        }
-                    }
-                    
-                    // 方法2: 尝试通过 CSS 样式调整
-                    toolbar.post {
-                        val searchView = toolbar.findViewById<android.view.View>(androidx.appcompat.R.id.search_button)
-                        searchView?.let { view ->
-                            val params = view.layoutParams as? androidx.appcompat.widget.Toolbar.LayoutParams
-                            params?.gravity = android.view.Gravity.END
-                            view.layoutParams = params
-                        }
-                    }
-                    
-                } catch (e: Exception) {
-                    // 静默处理异常，不影响应用运行
-                }
-            }, 100)
-        } catch (e: Exception) {
-            // 静默处理异常，不影响应用运行
-        }
-    }
+
 
     private fun checkCalDAVUpdateListener() {
         if (isNougatPlus()) {
