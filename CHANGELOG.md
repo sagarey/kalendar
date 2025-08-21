@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.5] - 2025-01-20
+### Fixed
+- Fixed About menu item position in header menu ([#26])
+- About menu item now consistently appears in the more options dropdown menu
+- Improved UI/UX consistency by ensuring About menu is always in dropdown rather than toolbar
+
 ## [1.5.4] - 2025-01-20
 ### Fixed
 - Fixed duplicate search buttons in header menu causing UI conflicts
