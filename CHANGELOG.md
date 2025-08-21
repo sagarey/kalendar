@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.2] - 2025-08-21
+### Fixed
+- Added missing search button to main menu ([#20])
+- Fixed search functionality not being accessible in the main interface
+- Search button now properly appears in the toolbar
+
 ## [1.5.1] - 2025-08-20
 ### Fixed
 - Optimized search button positioning implementation ([#18])
