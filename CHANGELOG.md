@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.4] - 2025-01-20
+### Fixed
+- Fixed duplicate search buttons in header menu causing UI conflicts
+- Removed conflicting search menu item that was duplicating MySearchMenu functionality
+- Improved search functionality with better state management and query trimming
+- Resolved overlapping back buttons and inconsistent search behavior
+- Enhanced search result clearing when search is closed
+
+### Documentation
+- Added comprehensive bug report documentation for duplicate search button issue
+- Included technical analysis and root cause documentation
+
 ## [1.5.2] - 2025-08-21
 ### Fixed
 - Added missing search button to main menu ([#20])
