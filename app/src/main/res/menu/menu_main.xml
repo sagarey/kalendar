@@ -52,7 +52,7 @@
         android:id="@+id/about"
         android:icon="@drawable/ic_info_vector"
         android:title="@string/about"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="never" />
     <item
         android:id="@+id/more_apps_from_us"
         android:icon="@drawable/ic_google_play_vector"
