@@ -265,4 +265,9 @@
     <string name="access_level_private">私人</string>
     <string name="access_level_confidential">机密</string>
     <string name="access_level_public">公开</string>
+    
+    <!-- 农历相关字符串 -->
+    <string name="lunar_calendar">农历</string>
+    <string name="solar_calendar">公历</string>
+    <string name="lunar_date_format">农历%1$s</string>
 </resources>
