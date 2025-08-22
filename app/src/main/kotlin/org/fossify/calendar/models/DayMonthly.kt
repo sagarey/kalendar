@@ -8,5 +8,7 @@ data class DayMonthly(
     val weekOfYear: Int,
     var dayEvents: ArrayList<Event>,
     var indexOnMonthView: Int,
-    var isWeekend: Boolean
+    var isWeekend: Boolean,
+    // 新增农历相关字段
+    var lunarDate: LunarDate? = null
 )
