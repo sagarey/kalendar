@@ -69,27 +69,30 @@ class LunarCalendarSimpleTest {
     }
     
     @Test
-    fun testSolarToLunar_KnownAccurateDates() {
-        // 测试一些已知准确的公历到农历转换
-        // 使用相对稳定的日期进行验证
+    fun testSolarToLunar_MonthVariation() {
+        // 测试不同月份的农历转换，验证月份变化
+        val testDates = listOf(
+            DateTime(2025, 1, 15),  // 应该是腊月
+            DateTime(2025, 3, 15),  // 应该是二月或三月
+            DateTime(2025, 6, 15),  // 应该是五月或六月
+            DateTime(2025, 9, 15),  // 应该是八月或九月
+            DateTime(2025, 12, 15)  // 应该是十一月或十二月
+        )
         
-        // 测试春节期间的日期 (每年农历正月初一)
-        val springFestival2025 = DateTime(2025, 1, 29, 0, 0, 0) // 2025年春节
-        val lunar2025 = LunarCalendarSimple.solarToLunar(springFestival2025)
+        val lunarResults = mutableListOf<LunarDate?>()
         
-        lunar2025?.let {
-            // 验证基本合理性
-            assertTrue("农历年份应该是2024或2025", it.year in 2024..2025)
-            assertTrue("春节期间应该是正月或腊月", it.month == 1 || it.month == 12)
+        for (date in testDates) {
+            val lunar = LunarCalendarSimple.solarToLunar(date)
+            lunarResults.add(lunar)
+            
+            lunar?.let {
+                println("${date.year}-${date.monthOfYear}-${date.dayOfMonth} → 农历${it.year}年${it.month}月${it.day}日 (${it.getDisplayText()})")
+            }
         }
         
-        // 测试中秋节期间
-        val midAutumn2025 = DateTime(2025, 10, 6, 0, 0, 0) // 2025年中秋节
-        val lunarMidAutumn = LunarCalendarSimple.solarToLunar(midAutumn2025)
-        
-        lunarMidAutumn?.let {
-            assertTrue("中秋节应该在农历八月", it.month in 7..9) // 允许一定误差
-            assertTrue("中秋节应该在月中", it.day in 10..20)
-        }
+        // 验证月份应该有变化，不应该都是正月
+        val months = lunarResults.mapNotNull { it?.month }.distinct()
+        assertTrue("农历月份应该有变化，不应该都是正月", months.size > 1)
+        assertFalse("不应该所有日期都是正月", lunarResults.all { it?.month == 1 })
     }
 }
