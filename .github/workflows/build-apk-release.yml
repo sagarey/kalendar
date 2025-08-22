@@ -96,7 +96,22 @@ jobs:
           echo "Built APK files:"
           ls -la dist/
 
-      - name: Create Release Notes
+      - name: Check if release exists
+        id: check_release
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if gh release view "$VERSION" --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+            echo "Release $VERSION already exists, will only upload APK files"
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+            echo "Release $VERSION does not exist, will create new release"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Release Notes (for new releases only)
+        if: steps.check_release.outputs.release_exists == 'false'
         id: release_notes
         run: |
           RELEASE_TYPE="${{ github.event.inputs.release_type || 'beta' }}"
@@ -129,7 +144,8 @@ jobs:
           
           echo "release_notes_file=release_notes.md" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (new releases only)
+        if: steps.check_release.outputs.release_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
@@ -139,6 +155,23 @@ jobs:
           prerelease: ${{ github.event.inputs.release_type == 'beta' || steps.version.outputs.is_tag == 'false' }}
           files: |
             dist/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload APK to existing release
+        if: steps.check_release.outputs.release_exists == 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "Uploading APK files to existing release $VERSION..."
+          
+          for apk in dist/*.apk; do
+            if [ -f "$apk" ]; then
+              echo "Uploading: $apk"
+              gh release upload "$VERSION" "$apk" --repo ${{ github.repository }} --clobber
+            fi
+          done
+          
+          echo "APK files uploaded successfully to existing release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -157,6 +190,16 @@ jobs:
           echo "- **版本**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **构建变体**: ${{ steps.flavor.outputs.flavor }}" >> $GITHUB_STEP_SUMMARY
           echo "- **发布类型**: ${{ github.event.inputs.release_type || 'beta' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ steps.check_release.outputs.release_exists }}" == "true" ]]; then
+            echo "### 📦 APK上传到现有Release" >> $GITHUB_STEP_SUMMARY
+            echo "APK文件已上传到现有的Release，不会覆盖Release说明。" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 🆕 新Release创建" >> $GITHUB_STEP_SUMMARY
+            echo "已创建新的Release并上传APK文件。" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 生成的 APK 文件" >> $GITHUB_STEP_SUMMARY
           ls -la dist/ | grep .apk | awk '{print "- " $9 " (" $5 " bytes)"}' >> $GITHUB_STEP_SUMMARY
