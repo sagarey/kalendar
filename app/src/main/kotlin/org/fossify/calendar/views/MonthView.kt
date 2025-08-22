@@ -274,7 +274,7 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                                 textColor.adjustAlpha(LOWER_ALPHA)
                             }
                         }
-                        val lunarTextY = textY + lunarPaint.textSize + resources.getDimensionPixelSize(R.dimen.tiny_margin)
+                        val lunarTextY = textY + lunarPaint.textSize + (lunarPaint.textSize * 0.2f)
                         canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
                     }
                     
