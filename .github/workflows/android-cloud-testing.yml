@@ -1,0 +1,67 @@
+name: Android Emulator Testing
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  emulator-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v3
+        with:
+          cache-read-only: false
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Start Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 6
+          avd-name: test-device
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            adb devices
+            adb shell settings put global window_animation_scale 0
+            adb shell settings put global transition_animation_scale 0
+            adb shell settings put global animator_duration_scale 0
+
+      - name: Build and Install APK
+        run: |
+          ./gradlew assembleFossDebug
+          adb install -r app/build/outputs/apk/foss/debug/app-foss-debug.apk
+
+      - name: Verify and Screenshot
+        run: |
+          adb shell pm list packages | grep foss
+          sleep 3
+          adb shell screencap -p /sdcard/screenshot.png
+          adb pull /sdcard/screenshot.png ./screenshot.png
+          adb shell rm /sdcard/screenshot.png
+
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            screenshot.png
+            app/build/outputs/apk/foss/debug/app-foss-debug.apk
