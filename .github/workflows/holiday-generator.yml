@@ -1,4 +1,4 @@
-name: Generate holiday ICS files
+name: Holiday Generator
 
 on:
   schedule:
