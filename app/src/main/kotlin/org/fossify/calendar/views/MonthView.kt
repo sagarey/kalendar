@@ -264,18 +264,24 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                     canvas.drawText(dayNumber, xPosCenter, textY, textPaint)
                     
                     // 绘制农历信息
-                    day.lunarDate?.let { lunarDate ->
-                        val lunarText = lunarDate.getDisplayText()
-                        val lunarPaint = Paint(textPaint).apply {
-                            textSize = textPaint.textSize * 0.6f
-                            color = if (day.isThisMonth) {
-                                textColor.adjustAlpha(MEDIUM_ALPHA)
-                            } else {
-                                textColor.adjustAlpha(LOWER_ALPHA)
+                    try {
+                        day.lunarDate?.let { lunarDate ->
+                            val lunarText = lunarDate.getDisplayText()
+                            if (lunarText.isNotEmpty()) {
+                                val lunarPaint = Paint(textPaint).apply {
+                                    textSize = textPaint.textSize * 0.6f
+                                    color = if (day.isThisMonth) {
+                                        textColor.adjustAlpha(MEDIUM_ALPHA)
+                                    } else {
+                                        textColor.adjustAlpha(LOWER_ALPHA)
+                                    }
+                                }
+                                val lunarTextY = textY + lunarPaint.textSize + (lunarPaint.textSize * 0.2f)
+                                canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
                             }
                         }
-                        val lunarTextY = textY + lunarPaint.textSize + (lunarPaint.textSize * 0.2f)
-                        canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
+                    } catch (e: Exception) {
+                        // 农历显示失败时静默忽略，不影响主要功能
                     }
                     
                     dayVerticalOffsets.put(day.indexOnMonthView, (verticalOffset + textPaint.textSize * 2).toInt())

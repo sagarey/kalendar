@@ -70,7 +70,11 @@ class MonthlyCalendarImpl(val callback: MonthlyCalendar, val context: Context) {
 
             val newDay = curDay.withDayOfMonth(value)
             val dayCode = Formatter.getDayCodeFromDateTime(newDay)
-            val lunarDate = LunarCalendarSimple.solarToLunar(newDay)
+            val lunarDate = try {
+                LunarCalendarSimple.solarToLunar(newDay)
+            } catch (e: Exception) {
+                null // 如果农历计算失败，继续使用原有功能
+            }
             val day = DayMonthly(value, isThisMonth, isToday, dayCode, newDay.weekOfWeekyear, ArrayList(), i, context.isWeekendIndex(i), lunarDate)
             days.add(day)
             value++
