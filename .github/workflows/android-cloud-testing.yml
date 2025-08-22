@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      branch:
+        description: '要测试的分支名称'
+        required: false
+        default: 'main'
+        type: string
 
 jobs:
   emulator-test:
@@ -12,6 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
       - name: Set up JDK
         uses: actions/setup-java@v4
