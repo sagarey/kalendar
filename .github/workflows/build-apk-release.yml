@@ -14,15 +14,7 @@ on:
         options:
         - beta
         - stable
-      flavor:
-        description: 'Build flavor'
-        required: true
-        default: 'foss'
-        type: choice
-        options:
-        - core
-        - foss
-        - gplay
+
 
 jobs:
   build-and-release:
@@ -64,18 +56,9 @@ jobs:
             echo "is_tag=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Determine build flavor
-        id: flavor
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "flavor=${{ github.event.inputs.flavor }}" >> $GITHUB_OUTPUT
-          else
-            echo "flavor=foss" >> $GITHUB_OUTPUT
-          fi
-
       - name: Build APK (Debug)
         run: |
-          ./gradlew assemble${{ steps.flavor.outputs.flavor }}Debug
+          ./gradlew assembleFossDebug
 
       - name: Rename APK files
         run: |
@@ -115,7 +98,7 @@ jobs:
         id: release_notes
         run: |
           RELEASE_TYPE="${{ github.event.inputs.release_type || 'beta' }}"
-          FLAVOR="${{ steps.flavor.outputs.flavor }}"
+          FLAVOR="foss"
           VERSION="${{ steps.version.outputs.version }}"
           
           cat > release_notes.md << EOF
@@ -178,7 +161,7 @@ jobs:
       - name: Upload APKs as Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: apk-files-${{ steps.version.outputs.version }}
+          name: apk-files-foss-${{ steps.version.outputs.version }}
           path: dist/*.apk
           retention-days: 90
 
@@ -188,7 +171,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 构建信息" >> $GITHUB_STEP_SUMMARY
           echo "- **版本**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **构建变体**: ${{ steps.flavor.outputs.flavor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建变体**: foss" >> $GITHUB_STEP_SUMMARY
           echo "- **发布类型**: ${{ github.event.inputs.release_type || 'beta' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
