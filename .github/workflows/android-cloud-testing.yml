@@ -10,16 +10,6 @@ on:
         required: false
         default: 'main'
         type: string
-      api_level:
-        description: 'Android API Level'
-        required: false
-        default: '34'
-        type: choice
-        options:
-        - '30'
-        - '31'
-        - '33'
-        - '34'
 
 # 优化并发控制，避免重复运行
 concurrency:
@@ -37,7 +27,7 @@ jobs:
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
-      API_LEVEL: ${{ github.event.inputs.api_level || '34' }}
+      API_LEVEL: 34
     
     steps:
       - name: Checkout code
