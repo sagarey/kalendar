@@ -27,6 +27,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v3
         with:
@@ -35,8 +45,28 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk
+            ~/.android
+          key: ${{ runner.os }}-android-sdk-33
+          restore-keys: |
+            ${{ runner.os }}-android-sdk-
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Cache Android Emulator
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: ${{ runner.os }}-android-emulator-${{ hashFiles('~/.android/avd/**/config.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-android-emulator-
 
       - name: Start Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
@@ -46,7 +76,8 @@ jobs:
           arch: x86_64
           profile: Nexus 6
           avd-name: test-device
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048 -partition-size 2048
+          disable-animations: true
           script: |
             adb devices
             adb shell settings put global window_animation_scale 0
@@ -61,9 +92,19 @@ jobs:
             echo "当前系统语言设置:"
             adb shell getprop persist.sys.locale
 
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/build/intermediates
+            app/build/tmp
+          key: ${{ runner.os }}-build-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Build and Install APK
         run: |
-          ./gradlew assembleFossDebug
+          ./gradlew assembleFossDebug --parallel --configure-on-demand
           adb install -r app/build/outputs/apk/foss/debug/app-foss-debug.apk
 
       - name: Verify and Screenshot
