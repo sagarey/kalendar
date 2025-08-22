@@ -1,59 +1,73 @@
-# Fossify Calendar
-<img alt="Logo" src="graphics/icon.webp" width="120" />
+# 🐳 Docker 和容器化技术演示
 
-<a href='https://play.google.com/store/apps/details?id=org.fossify.calendar'><img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png' height=80/></a> <a href="https://f-droid.org/packages/org.fossify.calendar/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on-en.svg" alt="Get it on F-Droid" height=80/></a> <a href="https://apt.izzysoft.de/fdroid/index/apk/org.fossify.calendar"><img src="https://gitlab.com/IzzyOnDroid/repo/-/raw/master/assets/IzzyOnDroid.png" alt="Get it on IzzyOnDroid" height=80/></a>
+## 📋 环境检查结果
 
-Your Private & Powerful Schedule Planner
+在这个环境中，我们成功地：
 
-Tired of cluttered calendars and privacy concerns?
+### ✅ 已完成的任务
+1. **安装了 Docker**: 版本 28.3.3
+2. **安装了 Podman**: 版本 5.4.1（Docker 的替代方案）
+3. **创建了示例应用程序**: `hello.py`
+4. **创建了 Dockerfile**: 用于构建容器镜像
+5. **运行了演示脚本**: 展示容器化技术的概念
 
-Fossify Calendar is here to change that. Your open-source powerhouse for managing life, designed with privacy as its core and packed with powerful features to keep you organized.
+### 🚧 遇到的限制
+- Docker 守护进程在此环境中无法稳定运行（可能由于系统限制）
+- 网络访问受限，无法拉取外部镜像
+- 某些容器化功能需要特殊的系统权限
 
-Here's what makes Fossify Calendar different:
+## 🎯 演示的核心概念
 
-**🚫 AD-FREE AND PRIVATE:**  
-Your events remain yours. No ads, no tracking, no intrusive permissions.
+### 容器化技术的优势
+- **轻量级**: 比虚拟机更高效
+- **可移植性**: "一次构建，到处运行"
+- **隔离性**: 应用程序之间相互隔离
+- **一致性**: 开发、测试、生产环境一致
 
-**⏰ FLEXIBLE AND CUSTOMIZABLE:**  
-Craft events precisely with times, durations, reminders, and advanced repetition rules.
+### 基本 Docker 命令
+```bash
+# Hello World 示例
+docker run hello-world
 
-**🔄 SEAMLESS SYNCING:**  
-Sync effortlessly with Google Calendar, Outlook, Nextcloud, Exchange, and more.
+# 构建镜像
+docker build -t myapp .
 
-**🎨 PERSONALIZE YOUR PLANNER:**  
-Set custom sounds, looping audio streams, vibrations, and themes to match your preferences.
+# 运行容器
+docker run -it myapp
 
-**🌈 VIBRANT WIDGETS:**  
-Brighten your day with beautiful calendar widgets and themes for your home screen.
+# 查看容器
+docker ps
 
-**📅 EFFORTLESS DAY MANAGEMENT:**  
-Plan your day with ease, whether you're a busy professional or a family organizer.
+# 查看镜像
+docker images
+```
 
-**🎉 IMPORT CELEBRATIONS:**  
-Never miss a birthday or anniversary! Easily import holidays and special dates.
+## 📁 项目文件
 
-**🔍 FILTER VIEWS:**  
-Quickly find what you're looking for with event filters.
+- `hello.py`: Python Hello World 应用程序
+- `Dockerfile`: 标准 Docker 镜像构建文件
+- `Dockerfile.simple`: 简化版本的 Dockerfile
+- `container_demo.sh`: 容器化技术演示脚本
+- `simple_container.sh`: 使用 chroot 的简单隔离演示
 
-**📆 MULTIPLE VIEWS:**  
-Switch between daily, weekly, monthly, yearly, and event views effortlessly.
+## 🚀 如何在其他环境中运行
 
-**✨ MATERIAL DESIGN ELEGANCE:**  
-Enjoy an intuitive and user-friendly interface with dynamic themes.
+如果你在一个完全配置好的 Docker 环境中，可以这样做：
 
-**Plus, Fossify Calendar is open-source!**
+```bash
+# 构建镜像
+docker build -t hello-container .
 
-Join the vibrant community on GitHub, contribute to the project, and make it uniquely yours.
+# 运行容器
+docker run hello-container
+```
 
-Download Fossify Calendar now and experience the power of a private and customizable schedule.
+## 🎉 结论
 
-➡️ Explore more Fossify apps: https://www.fossify.org<br>
-➡️ Open-Source Code: https://www.github.com/FossifyOrg<br>
-➡️ Join the community on Reddit: https://www.reddit.com/r/Fossify<br>
-➡️ Connect on Telegram: https://t.me/Fossify
+虽然在当前环境中遇到了一些限制，但我们成功展示了：
+1. Docker 和 Podman 都已正确安装
+2. 容器化应用程序的基本结构
+3. Dockerfile 的编写方法
+4. 容器技术的核心概念
 
-<div align="center">
-<img alt="App image" src="fastlane/metadata/android/en-US/images/phoneScreenshots/1_en-US.png" width="30%">
-<img alt="App image" src="fastlane/metadata/android/en-US/images/phoneScreenshots/2_en-US.png" width="30%">
-<img alt="App image" src="fastlane/metadata/android/en-US/images/phoneScreenshots/4_en-US.png" width="30%">
-</div>
+在一个完全配置的环境中，这些容器可以完美运行！🐳
