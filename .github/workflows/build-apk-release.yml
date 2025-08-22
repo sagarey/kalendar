@@ -68,41 +68,9 @@ jobs:
 
       - name: Pre-download dependencies
         run: |
-          echo "📥 预下载 Release 构建依赖..."
-          DEP_START_TIME=$(date +%s)
-          
-          # 显示所有依赖配置
-          echo "📋 可用的依赖配置:"
-          ./gradlew -q dependencies --dry-run | grep -E "^[a-zA-Z].*:" | head -8
-          
-          # 显示关键依赖
-          echo "📦 核心依赖预览:"
-          ./gradlew -q dependencies --configuration=debugRuntimeClasspath | grep -E "(androidx|kotlin|android)" | head -8
-          
-          # 下载所有依赖（详细模式）
-          ./gradlew dependencies --info --no-daemon --stacktrace
-          
-          DEP_END_TIME=$(date +%s)
-          DEP_DURATION=$((DEP_END_TIME - DEP_START_TIME))
-          echo "✅ 依赖下载完成，耗时: ${DEP_DURATION}s"
-          
-          # 详细的依赖统计
-          echo "📊 依赖下载统计:"
-          if [ -d "$HOME/.gradle/caches" ]; then
-            TOTAL_CACHE_SIZE=$(du -sh "$HOME/.gradle/caches" | cut -f1)
-            echo "   💾 总缓存大小: $TOTAL_CACHE_SIZE"
-            
-            if [ -d "$HOME/.gradle/caches/modules-2" ]; then
-              JAR_COUNT=$(find "$HOME/.gradle/caches/modules-2" -name "*.jar" | wc -l)
-              MODULE_SIZE=$(du -sh "$HOME/.gradle/caches/modules-2" | cut -f1)
-              echo "   📦 模块缓存: $MODULE_SIZE ($JAR_COUNT 个 JAR)"
-            fi
-            
-            if [ -d "$HOME/.gradle/caches/transforms-3" ]; then
-              TRANSFORM_SIZE=$(du -sh "$HOME/.gradle/caches/transforms-3" | cut -f1)
-              echo "   🔄 转换缓存: $TRANSFORM_SIZE"
-            fi
-          fi
+          echo "📥 下载依赖..."
+          ./gradlew dependencies --no-daemon --stacktrace
+          echo "✅ 依赖下载完成"
 
       - name: Cache Android SDK
         uses: actions/cache@v4
@@ -139,73 +107,23 @@ jobs:
 
       - name: Build APK (Debug)
         run: |
-          echo "🔨 开始 Release 构建流程..."
+          echo "🔨 构建 APK..."
           BUILD_START_TIME=$(date +%s)
           
-          # 显示构建环境信息
-          echo "📋 构建环境详情:"
-          echo "   🔧 Gradle 版本: $(./gradlew --version | grep 'Gradle' | head -1)"
-          echo "   ☕ Java 版本: $(java -version 2>&1 | head -1)"
-          echo "   🎯 Android Gradle 插件: $(./gradlew -q buildEnvironment | grep 'com.android.tools.build:gradle' | head -1 | awk '{print $2}' || echo '未知')"
-          echo "   📱 目标 SDK: ${{ env.API_LEVEL }}"
-          echo "   🚀 构建变体: foss-debug"
-          
-          # 显示项目信息
-          echo "📋 项目信息:"
-          ./gradlew -q projects | head -5
-          
-          # 显示可用任务（关键任务）
-          echo "🎯 主要构建任务:"
-          ./gradlew tasks --group="build" -q | grep -E "assemble|build" | head -5
-          
-          # 构建 APK（单次尝试、详细日志和性能分析）
-          echo "📦 开始构建 (Release 模式)..."
-          echo "⚙️ 完整构建参数: assembleFossDebug --info --parallel --configure-on-demand --stacktrace --build-cache --profile --scan"
-          
-          # 设置详细日志
-          export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.logging.level=info -Dorg.gradle.console=rich"
-          
-          if ./gradlew assembleFossDebug --info --parallel --configure-on-demand --stacktrace --build-cache --profile --scan; then
-            echo "✅ 构建成功"
+          if ./gradlew assembleFossDebug --parallel --configure-on-demand --stacktrace --build-cache; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
-            echo "⏱️ 构建耗时: ${BUILD_DURATION}s"
+            echo "✅ 构建成功 (${BUILD_DURATION}s)"
             
-            # 详细的构建后统计
-            echo "📊 构建完成统计:"
-            
-            # 检查构建报告
-            if [ -d "build/reports" ]; then
-              echo "   📈 构建报告:"
-              find build/reports -name "*.html" -o -name "*.json" | head -5 | while read report; do
-                echo "      📄 $(basename "$report")"
-              done
-            fi
-            
-            # 检查构建产物
-            echo "   📦 构建产物:"
+            # 显示构建产物
             if [ -d "app/build/outputs" ]; then
-              find app/build/outputs -name "*.apk" -o -name "*.aab" | while read output; do
+              find app/build/outputs -name "*.apk" | while read output; do
                 size=$(du -h "$output" | cut -f1)
-                echo "      📱 $(basename "$output"): $size"
+                echo "📱 $(basename "$output"): $size"
               done
-            fi
-            
-            # 显示 Gradle 守护进程状态
-            echo "   🔄 Gradle 守护进程:"
-            ./gradlew --status | head -3
-            
-            # 显示缓存统计
-            if [ -d "$HOME/.gradle/caches" ]; then
-              CACHE_SIZE=$(du -sh "$HOME/.gradle/caches" | cut -f1)
-              echo "   💾 Gradle 缓存: $CACHE_SIZE"
             fi
           else
             echo "❌ 构建失败"
-            # 显示失败后的诊断信息
-            echo "🔍 失败诊断:"
-            echo "   📋 最近的构建日志:"
-            find . -name "*.log" -newer /tmp -exec tail -5 {} \; 2>/dev/null || echo "   无可用日志文件"
             exit 1
           fi
 
@@ -245,10 +163,7 @@ jobs:
 
       - name: List built APKs
         run: |
-          echo "🔍 构建的 APK 文件:"
-          ls -la dist/
-          echo ""
-          echo "📊 文件详情:"
+          echo "📦 生成的文件:"
           for apk in dist/*.apk; do
             if [ -f "$apk" ]; then
               echo "  📱 $(basename "$apk"): $(du -h "$apk" | cut -f1)"
@@ -321,24 +236,19 @@ jobs:
         if: steps.check_release.outputs.release_exists == 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          echo "📤 上传 APK 文件到现有 Release $VERSION..."
+          echo "📤 上传到 Release $VERSION"
           
-          # 批量上传，单次尝试
           for apk in dist/*.apk; do
             if [ -f "$apk" ]; then
               filename=$(basename "$apk")
-              echo "📱 上传: $filename"
-              
               if gh release upload "$VERSION" "$apk" --repo ${{ github.repository }} --clobber; then
-                echo "✅ $filename 上传成功"
+                echo "✅ $filename"
               else
                 echo "❌ $filename 上传失败"
                 exit 1
               fi
             fi
           done
-          
-          echo "🎉 所有 APK 文件上传完成"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -355,34 +265,13 @@ jobs:
 
       - name: Summary
         run: |
-          BUILD_START_TIME=$(date -d "-$((SECONDS/60)) minutes" '+%H:%M:%S')
-          BUILD_DURATION="${SECONDS}s"
-          
-          echo "## 🎉 构建完成!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ⏱️ 构建时间" >> $GITHUB_STEP_SUMMARY
-          echo "- **开始时间**: ${BUILD_START_TIME}" >> $GITHUB_STEP_SUMMARY
-          echo "- **构建时长**: ${BUILD_DURATION}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner**: ubuntu-latest" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎉 构建完成" >> $GITHUB_STEP_SUMMARY
           echo "- **版本**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **构建变体**: foss" >> $GITHUB_STEP_SUMMARY
-          echo "- **发布类型**: ${{ github.event.inputs.release_type || 'beta' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Android API**: ${{ env.API_LEVEL }}" >> $GITHUB_STEP_SUMMARY
           echo "- **提交**: ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
+          echo "- **类型**: ${{ github.event.inputs.release_type || 'beta' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [[ "${{ steps.check_release.outputs.release_exists }}" == "true" ]]; then
-            echo "### 📦 APK上传到现有Release" >> $GITHUB_STEP_SUMMARY
-            echo "APK文件已上传到现有的Release，不会覆盖Release说明。" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### 🆕 新Release创建" >> $GITHUB_STEP_SUMMARY
-            echo "已创建新的Release并上传APK文件。" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📱 生成的 APK 文件" >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 生成的 APK" >> $GITHUB_STEP_SUMMARY
           for apk in dist/*.apk; do
             if [ -f "$apk" ]; then
               filename=$(basename "$apk")
@@ -390,7 +279,7 @@ jobs:
               echo "- **${filename}** (${size})" >> $GITHUB_STEP_SUMMARY
             fi
           done
+          
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 发布链接" >> $GITHUB_STEP_SUMMARY
-          echo "- [📋 GitHub Release](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
-          echo "- [📦 Actions 工件](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 链接" >> $GITHUB_STEP_SUMMARY
+          echo "- [📋 Release](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY

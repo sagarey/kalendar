@@ -61,28 +61,9 @@ jobs:
 
       - name: Pre-download dependencies
         run: |
-          echo "📥 预下载项目依赖..."
-          DEP_START_TIME=$(date +%s)
-          
-          # 显示依赖配置
-          echo "📋 依赖配置概览:"
-          ./gradlew -q dependencies --configuration=debugCompileClasspath | head -10
-          
-          # 下载依赖（包含详细日志）
-          ./gradlew dependencies --info --no-daemon --stacktrace
-          
-          DEP_END_TIME=$(date +%s)
-          DEP_DURATION=$((DEP_END_TIME - DEP_START_TIME))
-          echo "✅ 依赖下载完成，耗时: ${DEP_DURATION}s"
-          
-          # 显示依赖统计
-          echo "📊 依赖统计:"
-          if [ -d "$HOME/.gradle/caches/modules-2" ]; then
-            DEP_COUNT=$(find "$HOME/.gradle/caches/modules-2" -name "*.jar" | wc -l)
-            DEP_SIZE=$(du -sh "$HOME/.gradle/caches/modules-2" | cut -f1)
-            echo "   📦 JAR 文件: $DEP_COUNT 个"
-            echo "   💾 缓存大小: $DEP_SIZE"
-          fi
+          echo "📥 下载依赖..."
+          ./gradlew dependencies --no-daemon --stacktrace
+          echo "✅ 依赖下载完成"
 
       - name: Cache Android SDK
         uses: actions/cache@v4
@@ -99,39 +80,18 @@ jobs:
 
       - name: Enable KVM and optimize for x86_64
         run: |
-          echo "🚀 准备 Android 模拟器环境..."
-          
+          echo "🚀 配置模拟器环境..."
           # 启用 KVM 硬件加速
-          echo "⚙️ 配置 KVM 硬件加速..."
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           
           # 检查 KVM 支持
-          echo "🔍 检查硬件加速支持..."
           if [ -r /dev/kvm ]; then
             echo "✅ KVM 硬件加速可用"
-            KVM_STATUS="✅ 可用"
           else
             echo "⚠️ KVM 硬件加速不可用"
-            KVM_STATUS="⚠️ 不可用"
           fi
-          
-          # 显示详细的系统信息
-          echo "📊 系统环境信息:"
-          echo "   🖥️ CPU 架构: $(lscpu | grep 'Architecture:' | awk '{print $2}')"
-          echo "   🔧 CPU 型号: $(lscpu | grep 'Model name:' | cut -d':' -f2 | xargs)"
-          echo "   💾 CPU 核心: $(lscpu | grep '^CPU(s):' | awk '{print $2}')"
-          echo "   ⚡ KVM 状态: $KVM_STATUS"
-          
-          # 检查虚拟化支持
-          echo "🔍 虚拟化特性:"
-          VIRT_FEATURES=$(lscpu | grep -E "Virtualization|Hypervisor" || echo "无虚拟化特性信息")
-          echo "   $VIRT_FEATURES"
-          
-          # 显示可用内存
-          echo "💾 内存信息:"
-          free -h | grep -E "Mem:|Swap:" | sed 's/^/   /'
 
       - name: Cache Android Emulator
         uses: actions/cache@v4
@@ -158,70 +118,23 @@ jobs:
           disable-linux-hw-accel: false
           emulator-build: 7425822
           script: |
-            echo "📱 Android 模拟器已启动，开始配置..."
-            
-            # 显示连接的设备
-            echo "🔌 已连接的设备:"
+            echo "📱 配置模拟器..."
             adb devices
             
             # 关闭动画以加速测试
-            echo "⚡ 优化模拟器性能（关闭动画）..."
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
-            echo "✅ 动画已禁用"
             
             # 设置系统语言为简体中文
-            echo "🌐 设置系统语言为简体中文..."
             adb shell "setprop persist.sys.locale zh-CN && setprop persist.sys.language zh && setprop persist.sys.country CN"
             adb shell "am broadcast -a android.intent.action.LOCALE_CHANGED"
+            sleep 2
             
-            # 等待语言设置生效
-            echo "⏳ 等待语言设置生效..."
-            sleep 3
-            
-            # 验证语言设置
-            CURRENT_LOCALE=$(adb shell getprop persist.sys.locale)
-            echo "✅ 当前系统语言: $CURRENT_LOCALE"
-            
-            # 获取并显示详细的模拟器信息
-            echo "📊 模拟器环境详情:"
-            echo "   🏷️ 设备型号: $(adb shell getprop ro.product.model)"
-            echo "   🔧 设备品牌: $(adb shell getprop ro.product.brand)"
-            echo "   🆔 设备ID: $(adb shell getprop ro.product.device)"
-            echo "   📐 屏幕密度: $(adb shell getprop ro.sf.lcd_density)"
-            echo "   📱 屏幕分辨率: $(adb shell wm size | cut -d' ' -f3)"
-            
-            # 验证模拟器架构
-            echo "🏗️ 架构信息:"
-            CPU_ABI=$(adb shell getprop ro.product.cpu.abi)
-            CPU_ABI_LIST=$(adb shell getprop ro.product.cpu.abilist)
-            echo "   🎯 主要架构: $CPU_ABI"
-            echo "   📋 支持架构: $CPU_ABI_LIST"
-            
-            # 验证 Android 版本
-            echo "🤖 Android 版本:"
-            ANDROID_VERSION=$(adb shell getprop ro.build.version.release)
-            SDK_VERSION=$(adb shell getprop ro.build.version.sdk)
-            BUILD_ID=$(adb shell getprop ro.build.id)
-            echo "   📱 Android: $ANDROID_VERSION (API $SDK_VERSION)"
-            echo "   🏗️ 构建: $BUILD_ID"
-            
-            # 验证硬件加速状态
-            echo "⚡ 图形加速:"
-            QEMU_GLES=$(adb shell getprop ro.kernel.qemu.gles 2>/dev/null || echo "硬件加速模式")
-            echo "   🎮 GLES: $QEMU_GLES"
-            
-            # 检查可用存储空间
-            echo "💾 存储空间:"
-            adb shell df /data | tail -1 | awk '{print "   📁 /data: " $4 " 可用 (" $5 " 已用)"}'
-            
-            # 检查内存使用
-            echo "🧠 内存状态:"
-            MEMINFO=$(adb shell cat /proc/meminfo | grep -E "MemTotal|MemAvailable" | awk '{print $2}' | paste - -)
-            echo "   💾 内存: $(echo $MEMINFO | awk '{printf "%.1fGB 可用 / %.1fGB 总计", $2/1024/1024, $1/1024/1024}')"
-            
-            echo "🎉 模拟器配置完成！"
+            # 验证环境
+            echo "🤖 Android $(adb shell getprop ro.build.version.release) (API $(adb shell getprop ro.build.version.sdk))"
+            echo "🏗️ 架构: $(adb shell getprop ro.product.cpu.abi)"
+            echo "✅ 模拟器就绪"
 
       - name: Cache build outputs
         uses: actions/cache@v4
@@ -235,132 +148,69 @@ jobs:
 
       - name: Build and Install APK
         run: |
-          echo "🔨 开始构建 APK..."
+          echo "🔨 构建 APK..."
           BUILD_START_TIME=$(date +%s)
           
-          # 显示 Gradle 版本和项目信息
-          echo "📋 构建环境信息:"
-          echo "   🔧 Gradle 版本: $(./gradlew --version | grep 'Gradle' | head -1)"
-          echo "   ☕ Java 版本: $JAVA_HOME"
-          echo "   🎯 项目: $(./gradlew -q projects | head -1)"
-          
-          # 构建 APK（单次尝试，详细日志）
-          echo "📦 开始构建尝试..."
-          echo "⚙️ 构建参数: assembleFossDebug --info --parallel --configure-on-demand --stacktrace --build-cache --profile"
-          
-          # 设置详细日志环境变量
-          export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.logging.level=info"
-          
-          if ./gradlew assembleFossDebug --info --parallel --configure-on-demand --stacktrace --build-cache --profile; then
-            echo "✅ 构建成功"
+          if ./gradlew assembleFossDebug --parallel --configure-on-demand --stacktrace --build-cache; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
-            echo "⏱️ 构建耗时: ${BUILD_DURATION}s"
-            
-            # 显示构建统计信息
-            echo "📊 构建统计:"
-            if [ -f "build/reports/profile/profile-*.html" ]; then
-              echo "   📈 构建性能报告已生成"
-              ls -la build/reports/profile/
-            fi
-            
-            # 显示 Gradle 缓存统计
-            echo "🗂️ 构建缓存信息:"
-            if [ -d "$HOME/.gradle/caches" ]; then
-              CACHE_SIZE=$(du -sh "$HOME/.gradle/caches" | cut -f1)
-              echo "   💾 缓存大小: $CACHE_SIZE"
-            fi
+            echo "✅ 构建成功 (${BUILD_DURATION}s)"
           else
-            echo "❌ 构建失败，退出"
+            echo "❌ 构建失败"
             exit 1
           fi
           
-          # 检查并显示 APK 信息
+          # 安装 APK
           APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
           if [ -f "$APK_PATH" ]; then
             APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-            echo "📱 APK 文件信息:"
-            echo "   📍 路径: $APK_PATH"
-            echo "   📏 大小: $APK_SIZE"
-            echo "   🔍 MD5: $(md5sum "$APK_PATH" | cut -d' ' -f1)"
-          else
-            echo "❌ APK 文件不存在: $APK_PATH"
-            exit 1
-          fi
-          
-          # 安装 APK（单次尝试，详细日志）
-          echo "📲 开始安装 APK..."
-          if adb install -r "$APK_PATH"; then
-            echo "✅ 安装成功"
-            # 验证安装
-            PACKAGE_NAME="org.fossify.calendar"
-            if adb shell pm list packages | grep -q "$PACKAGE_NAME"; then
-              echo "🎯 应用包验证成功: $PACKAGE_NAME"
-              INSTALLED_VERSION=$(adb shell dumpsys package "$PACKAGE_NAME" | grep versionName | head -1 | cut -d'=' -f2)
-              echo "📋 已安装版本: $INSTALLED_VERSION"
+            echo "📱 APK: $APK_SIZE"
+            
+            if adb install -r "$APK_PATH"; then
+              echo "✅ 安装成功"
             else
-              echo "⚠️ 应用包验证失败"
+              echo "❌ 安装失败"
+              exit 1
             fi
           else
-            echo "❌ 安装失败，退出"
+            echo "❌ APK 文件不存在"
             exit 1
           fi
 
       - name: Test and Verify Installation
         run: |
-          echo "🔍 验证应用安装和功能..."
+          echo "🔍 验证应用..."
           
-          # 检查已安装的包
-          echo "📦 已安装的 FOSS 相关包:"
-          adb shell pm list packages | grep foss || echo "⚠️ 未找到 FOSS 相关包"
-          
-          # 获取设备信息
-          echo "📱 设备信息:"
-          echo "   🏷️ 设备型号: $(adb shell getprop ro.product.model)"
-          echo "   🤖 Android 版本: $(adb shell getprop ro.build.version.release)"
-          echo "   🎯 API 级别: $(adb shell getprop ro.build.version.sdk)"
-          echo "   🏗️ 架构: $(adb shell getprop ro.product.cpu.abi)"
-          echo "   🌍 语言: $(adb shell getprop persist.sys.locale)"
-          
-          # 检查应用权限
+          # 检查安装
           PACKAGE_NAME="org.fossify.calendar"
-          echo "🔐 应用权限检查:"
-          adb shell dumpsys package "$PACKAGE_NAME" | grep permission | head -5 || echo "⚠️ 权限信息获取失败"
-          
-          # 尝试启动应用
-          echo "🚀 尝试启动应用..."
-          adb shell am start -n "$PACKAGE_NAME/.activities.SplashActivity" || \
-          adb shell am start -n "$PACKAGE_NAME/.activities.MainActivity" || \
-          echo "⚠️ 应用启动可能失败，但这不一定表示安装失败"
-          
-          # 等待应用启动
-          sleep 5
-          
-          # 截图
-          echo "📸 捕获屏幕截图..."
-          SCREENSHOT_PATH="/sdcard/test_screenshot_$(date +%Y%m%d_%H%M%S).png"
-          if adb shell screencap -p "$SCREENSHOT_PATH"; then
-            if adb pull "$SCREENSHOT_PATH" ./screenshot.png; then
-              echo "✅ 截图保存成功: screenshot.png"
-              SCREENSHOT_SIZE=$(du -h ./screenshot.png | cut -f1)
-              echo "   📏 截图大小: $SCREENSHOT_SIZE"
-            else
-              echo "❌ 截图下载失败"
-            fi
-            adb shell rm "$SCREENSHOT_PATH"
+          if adb shell pm list packages | grep -q "$PACKAGE_NAME"; then
+            echo "✅ 应用已安装: $PACKAGE_NAME"
           else
-            echo "❌ 截图捕获失败"
+            echo "❌ 应用未找到"
+            exit 1
           fi
           
-          # 获取应用日志
-          echo "📋 获取应用日志..."
-          adb logcat -d | grep "$PACKAGE_NAME" | tail -10 > app_logs.txt || echo "⚠️ 无应用日志"
-          if [ -s app_logs.txt ]; then
-            echo "✅ 应用日志已保存: app_logs.txt"
-            echo "📄 最后几行日志:"
-            tail -3 app_logs.txt
+          # 尝试启动应用
+          echo "🚀 启动应用..."
+          adb shell am start -n "$PACKAGE_NAME/.activities.SplashActivity" || \
+          adb shell am start -n "$PACKAGE_NAME/.activities.MainActivity" || \
+          echo "⚠️ 启动失败"
+          
+          sleep 3
+          
+          # 截图
+          echo "📸 截图..."
+          if adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png ./screenshot.png; then
+            echo "✅ 截图成功 ($(du -h ./screenshot.png | cut -f1))"
+            adb shell rm /sdcard/screenshot.png
           else
-            echo "ℹ️ 没有找到应用日志"
+            echo "❌ 截图失败"
+          fi
+          
+          # 收集日志
+          adb logcat -d | grep "$PACKAGE_NAME" | tail -5 > app_logs.txt || true
+          if [ -s app_logs.txt ]; then
+            echo "✅ 收集到应用日志"
           fi
 
       - name: Upload Test Results and Build Logs
@@ -379,67 +229,20 @@ jobs:
       - name: Test Summary
         if: always()
         run: |
-          TEST_END_TIME=$(date +%s)
-          TEST_DURATION=$((TEST_END_TIME - SECONDS))
           BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
           
-          echo "## 🧪 Android 模拟器测试完成!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ⏱️ 测试时间" >> $GITHUB_STEP_SUMMARY
-          echo "- **测试分支**: $BRANCH_NAME" >> $GITHUB_STEP_SUMMARY
-          echo "- **测试时长**: ${TEST_DURATION}s" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner**: ubuntu-latest" >> $GITHUB_STEP_SUMMARY
-          echo "- **完成时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### 📱 测试环境" >> $GITHUB_STEP_SUMMARY
-          echo "- **Android API**: ${{ env.API_LEVEL }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **模拟器架构**: x86_64" >> $GITHUB_STEP_SUMMARY
-          echo "- **模拟器配置**: Nexus 6, KVM 加速" >> $GITHUB_STEP_SUMMARY
-          echo "- **系统语言**: 简体中文" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          echo "### 📋 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "## 🧪 Android 模拟器测试" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: $BRANCH_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- **提交**: ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
-          echo "- **构建变体**: foss-debug" >> $GITHUB_STEP_SUMMARY
-          echo "- **Gradle 优化**: 并行构建, 按需配置, 构建缓存" >> $GITHUB_STEP_SUMMARY
+          echo "- **Android API**: ${{ env.API_LEVEL }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # 检查测试结果
+          # 检查结果
           if [ -f "screenshot.png" ]; then
-            SCREENSHOT_SIZE=$(du -h screenshot.png | cut -f1)
-            echo "### ✅ 测试结果" >> $GITHUB_STEP_SUMMARY
-            echo "- **APK 安装**: 成功" >> $GITHUB_STEP_SUMMARY
-            echo "- **应用启动**: 尝试启动" >> $GITHUB_STEP_SUMMARY
-            echo "- **屏幕截图**: 已生成 ($SCREENSHOT_SIZE)" >> $GITHUB_STEP_SUMMARY
+            echo "### ✅ 测试成功" >> $GITHUB_STEP_SUMMARY
+            echo "- APK 安装并启动成功" >> $GITHUB_STEP_SUMMARY
+            echo "- 截图: $(du -h screenshot.png | cut -f1)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "### ❌ 测试结果" >> $GITHUB_STEP_SUMMARY
-            echo "- **状态**: 部分失败，详见日志" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ -f "app_logs.txt" ] && [ -s "app_logs.txt" ]; then
-            echo "- **应用日志**: 已收集" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- **应用日志**: 无日志输出" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📦 生成的文件" >> $GITHUB_STEP_SUMMARY
-          for file in screenshot.png app_logs.txt app/build/outputs/apk/foss/debug/app-foss-debug.apk; do
-            if [ -f "$file" ]; then
-              filename=$(basename "$file")
-              size=$(du -h "$file" | cut -f1)
-              echo "- **${filename}** (${size})" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 相关链接" >> $GITHUB_STEP_SUMMARY
-          echo "- [📦 测试工件](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})" >> $GITHUB_STEP_SUMMARY
-          echo "- [📊 工作流历史](https://github.com/${GITHUB_REPOSITORY}/actions/workflows/android-emulator-testing.yml)" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ job.status }}" != "success" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### ⚠️ 注意事项" >> $GITHUB_STEP_SUMMARY
-            echo "测试过程中遇到问题，请检查详细日志获取更多信息。" >> $GITHUB_STEP_SUMMARY
+            echo "### ❌ 测试失败" >> $GITHUB_STEP_SUMMARY
+            echo "详见运行日志" >> $GITHUB_STEP_SUMMARY
           fi
