@@ -34,6 +34,7 @@ jobs:
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
+      API_LEVEL: 34
     
     steps:
       - name: Checkout code
@@ -75,7 +76,7 @@ jobs:
           path: |
             /usr/local/lib/android/sdk
             ~/.android
-          key: ${{ runner.os }}-android-sdk-34
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}
           restore-keys: |
             ${{ runner.os }}-android-sdk-
 
@@ -280,6 +281,7 @@ jobs:
           echo "- **版本**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **构建变体**: foss" >> $GITHUB_STEP_SUMMARY
           echo "- **发布类型**: ${{ github.event.inputs.release_type || 'beta' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Android API**: ${{ env.API_LEVEL }}" >> $GITHUB_STEP_SUMMARY
           echo "- **提交**: ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           

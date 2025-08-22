@@ -10,6 +10,16 @@ on:
         required: false
         default: 'main'
         type: string
+      api_level:
+        description: 'Android API Level'
+        required: false
+        default: '34'
+        type: choice
+        options:
+        - '30'
+        - '31'
+        - '33'
+        - '34'
 
 # 优化并发控制，避免重复运行
 concurrency:
@@ -27,6 +37,7 @@ jobs:
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
+      API_LEVEL: ${{ github.event.inputs.api_level || '34' }}
     
     steps:
       - name: Checkout code
@@ -68,18 +79,34 @@ jobs:
           path: |
             /usr/local/lib/android/sdk
             ~/.android
-          key: ${{ runner.os }}-android-sdk-33
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}
           restore-keys: |
             ${{ runner.os }}-android-sdk-
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Enable KVM group perms
+      - name: Enable KVM and optimize for x86_64
         run: |
+          # 启用 KVM 硬件加速
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          
+          # 检查 KVM 支持
+          if [ -r /dev/kvm ]; then
+            echo "✅ KVM 硬件加速可用"
+          else
+            echo "⚠️ KVM 硬件加速不可用"
+          fi
+          
+          # 显示 CPU 架构信息
+          echo "🔍 CPU 架构信息:"
+          lscpu | grep -E "Architecture|Model name|CPU\\(s\\):"
+          
+          # 检查虚拟化支持
+          echo "🔍 虚拟化特性:"
+          lscpu | grep -E "Virtualization|Hypervisor"
 
       - name: Cache Android Emulator
         uses: actions/cache@v4
@@ -94,16 +121,17 @@ jobs:
       - name: Start Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 33
+          api-level: ${{ env.API_LEVEL }}
           target: google_apis
           arch: x86_64
           profile: Nexus 6
-          avd-name: test-device
+          avd-name: test-device-api${{ env.API_LEVEL }}-x86_64
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 2048
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 2048 -smp 2 -accel kvm
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
+          emulator-build: 7425822
           script: |
             adb devices
             adb shell settings put global window_animation_scale 0
@@ -117,6 +145,20 @@ jobs:
             # 验证语言设置
             echo "当前系统语言设置:"
             adb shell getprop persist.sys.locale
+            
+            # 验证模拟器架构和版本
+            echo "🔍 模拟器架构信息:"
+            adb shell getprop ro.product.cpu.abi
+            adb shell getprop ro.product.cpu.abilist
+            
+            # 验证 Android 版本
+            echo "🔍 Android 版本信息:"
+            adb shell getprop ro.build.version.release
+            adb shell getprop ro.build.version.sdk
+            
+            # 验证硬件加速状态
+            echo "🔍 虚拟化状态:"
+            adb shell getprop ro.kernel.qemu.gles || echo "物理设备或硬件加速模式"
 
       - name: Cache build outputs
         uses: actions/cache@v4
