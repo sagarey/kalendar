@@ -52,6 +52,14 @@ jobs:
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
+            # 设置系统语言为简体中文
+            adb shell "setprop persist.sys.locale zh-CN && setprop persist.sys.language zh && setprop persist.sys.country CN"
+            adb shell "am broadcast -a android.intent.action.LOCALE_CHANGED"
+            # 等待语言设置生效
+            sleep 2
+            # 验证语言设置
+            echo "当前系统语言设置:"
+            adb shell getprop persist.sys.locale
 
       - name: Build and Install APK
         run: |
