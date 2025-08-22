@@ -19,10 +19,10 @@ concurrency:
 jobs:
   emulator-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
-      # 优化 Gradle 性能
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC"
+      # 优化 Gradle 性能 - 2核环境配置
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=false -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx2g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
       # Android 相关环境变量
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
@@ -78,9 +78,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Enable KVM and optimize for x86_64
+      - name: Setup Android Environment
         run: |
-          echo "🚀 配置模拟器环境..."
+          echo "🚀 配置 Android 环境..."
+          
           # 启用 KVM 硬件加速
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -92,6 +93,18 @@ jobs:
           else
             echo "⚠️ KVM 硬件加速不可用"
           fi
+          
+          # 启动 ADB 服务器
+          echo "🔧 启动 ADB 服务..."
+          adb start-server
+          adb devices
+          
+          # 设置环境变量以避免图形库冲突
+          echo "🎮 配置图形环境..."
+          export QT_QPA_PLATFORM=offscreen
+          export DISPLAY=:99
+          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+          echo "DISPLAY=:99" >> $GITHUB_ENV
 
       - name: Cache Android Emulator
         uses: actions/cache@v4
@@ -111,22 +124,44 @@ jobs:
           arch: x86_64
           profile: Nexus 6
           avd-name: test-device-api${{ env.API_LEVEL }}-x86_64
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 2048 -smp 2 -accel kvm
+          force-avd-creation: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 1024 -smp 1 -accel kvm -netdelay none -netspeed full
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          emulator-build: 7425822
+          working-directory: ./
           script: |
             echo "📱 配置模拟器..."
-            adb devices
+            
+            # 确保 ADB 连接稳定
+            echo "🔧 检查 ADB 连接..."
+            for i in {1..5}; do
+              if adb devices | grep -q "emulator.*device"; then
+                echo "✅ ADB 连接成功"
+                break
+              else
+                echo "⏳ 等待 ADB 连接... ($i/5)"
+                adb kill-server
+                adb start-server
+                sleep 3
+              fi
+            done
+            
+            # 验证设备状态
+            adb devices -l
+            
+            # 等待设备完全启动
+            echo "⏳ 等待系统启动..."
+            adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
             # 关闭动画以加速测试
+            echo "⚡ 优化性能..."
             adb shell settings put global window_animation_scale 0
             adb shell settings put global transition_animation_scale 0
             adb shell settings put global animator_duration_scale 0
             
             # 设置系统语言为简体中文
+            echo "🌐 设置语言..."
             adb shell "setprop persist.sys.locale zh-CN && setprop persist.sys.language zh && setprop persist.sys.country CN"
             adb shell "am broadcast -a android.intent.action.LOCALE_CHANGED"
             sleep 2
@@ -151,7 +186,7 @@ jobs:
           echo "🔨 构建 APK..."
           BUILD_START_TIME=$(date +%s)
           
-          if ./gradlew assembleFossDebug --parallel --configure-on-demand --stacktrace --build-cache; then
+          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ 构建成功 (${BUILD_DURATION}s)"
@@ -166,11 +201,28 @@ jobs:
             APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
             echo "📱 APK: $APK_SIZE"
             
-            if adb install -r "$APK_PATH"; then
+            # 确保 ADB 连接正常
+            if ! adb devices | grep -q "emulator.*device"; then
+              echo "⚠️ ADB 连接异常，重新连接..."
+              adb kill-server
+              adb start-server
+              sleep 2
+            fi
+            
+            # 安装 APK
+            echo "📲 安装 APK..."
+            if adb install -r -t "$APK_PATH"; then
               echo "✅ 安装成功"
             else
-              echo "❌ 安装失败"
-              exit 1
+              echo "❌ 安装失败，尝试卸载后重新安装..."
+              adb uninstall org.fossify.calendar 2>/dev/null || true
+              if adb install -r -t "$APK_PATH"; then
+                echo "✅ 重新安装成功"
+              else
+                echo "❌ 安装最终失败"
+                adb logcat -d | tail -20
+                exit 1
+              fi
             fi
           else
             echo "❌ APK 文件不存在"
