@@ -15,13 +15,25 @@ on:
         - beta
         - stable
 
+# 优化并发控制，避免重复运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-4-cores
+    timeout-minutes: 45
     permissions:
       contents: write
       actions: read
+    env:
+      # 优化 Gradle 性能
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC"
+      # Android 相关环境变量
+      ANDROID_COMPILE_SDK: 34
+      ANDROID_BUILD_TOOLS: 34.0.0
+      ANDROID_SDK_TOOLS: 9477386
     
     steps:
       - name: Checkout code
@@ -35,6 +47,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v3
         with:
@@ -42,6 +64,30 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+
+      - name: Pre-download dependencies
+        run: |
+          ./gradlew dependencies --no-daemon --stacktrace
+
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/local/lib/android/sdk
+            ~/.android
+          key: ${{ runner.os }}-android-sdk-34
+          restore-keys: |
+            ${{ runner.os }}-android-sdk-
+
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/build/intermediates
+            app/build/tmp
+          key: ${{ runner.os }}-build-release-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-build-release-
 
       - name: Extract version info
         id: version
@@ -58,26 +104,64 @@ jobs:
 
       - name: Build APK (Debug)
         run: |
-          ./gradlew assembleFossDebug
+          # 构建 APK（带重试机制和性能优化）
+          for i in {1..3}; do
+            if ./gradlew assembleFossDebug --parallel --configure-on-demand --stacktrace --build-cache; then
+              echo "✅ 构建成功"
+              break
+            else
+              echo "❌ 构建失败，重试 $i/3"
+              if [ $i -eq 3 ]; then exit 1; fi
+              ./gradlew clean
+              sleep 15
+            fi
+          done
 
       - name: Rename APK files
         run: |
           mkdir -p dist
+          
+          # 检查构建输出
+          if [ ! -d "app/build/outputs/apk" ]; then
+            echo "❌ APK 输出目录不存在"
+            exit 1
+          fi
+          
+          # 重命名 APK 文件
           find app/build/outputs/apk -name "*.apk" -type f | while read apk; do
-            filename=$(basename "$apk")
-            flavor_dir=$(dirname "$apk" | xargs basename)
-            build_type=$(dirname "$(dirname "$apk")" | xargs basename)
-            
-            # Create descriptive filename
-            new_name="kalendar-${{ steps.version.outputs.version }}-${flavor_dir}-${build_type}.apk"
-            cp "$apk" "dist/$new_name"
-            echo "Copied: $apk -> dist/$new_name"
+            if [ -f "$apk" ]; then
+              filename=$(basename "$apk")
+              flavor_dir=$(dirname "$apk" | xargs basename)
+              build_type=$(dirname "$(dirname "$apk")" | xargs basename)
+              
+              # Create descriptive filename
+              new_name="kalendar-${{ steps.version.outputs.version }}-${flavor_dir}-${build_type}.apk"
+              cp "$apk" "dist/$new_name"
+              echo "✅ 复制: $apk -> dist/$new_name"
+              
+              # 显示文件大小
+              size=$(du -h "dist/$new_name" | cut -f1)
+              echo "📦 文件大小: $size"
+            fi
           done
+          
+          # 验证输出文件
+          if [ -z "$(ls -A dist/)" ]; then
+            echo "❌ 没有生成 APK 文件"
+            exit 1
+          fi
 
       - name: List built APKs
         run: |
-          echo "Built APK files:"
+          echo "🔍 构建的 APK 文件:"
           ls -la dist/
+          echo ""
+          echo "📊 文件详情:"
+          for apk in dist/*.apk; do
+            if [ -f "$apk" ]; then
+              echo "  📱 $(basename "$apk"): $(du -h "$apk" | cut -f1)"
+            fi
+          done
 
       - name: Check if release exists
         id: check_release
@@ -145,16 +229,31 @@ jobs:
         if: steps.check_release.outputs.release_exists == 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          echo "Uploading APK files to existing release $VERSION..."
+          echo "📤 上传 APK 文件到现有 Release $VERSION..."
           
+          # 批量上传，带重试机制
           for apk in dist/*.apk; do
             if [ -f "$apk" ]; then
-              echo "Uploading: $apk"
-              gh release upload "$VERSION" "$apk" --repo ${{ github.repository }} --clobber
+              filename=$(basename "$apk")
+              echo "📱 上传: $filename"
+              
+              for i in {1..3}; do
+                if gh release upload "$VERSION" "$apk" --repo ${{ github.repository }} --clobber; then
+                  echo "✅ $filename 上传成功"
+                  break
+                else
+                  echo "❌ $filename 上传失败，重试 $i/3"
+                  if [ $i -eq 3 ]; then 
+                    echo "💥 $filename 最终上传失败"
+                    exit 1
+                  fi
+                  sleep 10
+                fi
+              done
             fi
           done
           
-          echo "APK files uploaded successfully to existing release"
+          echo "🎉 所有 APK 文件上传完成"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -167,12 +266,21 @@ jobs:
 
       - name: Summary
         run: |
+          BUILD_START_TIME=$(date -d "-$((SECONDS/60)) minutes" '+%H:%M:%S')
+          BUILD_DURATION="${SECONDS}s"
+          
           echo "## 🎉 构建完成!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "### ⏱️ 构建时间" >> $GITHUB_STEP_SUMMARY
+          echo "- **开始时间**: ${BUILD_START_TIME}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时长**: ${BUILD_DURATION}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runner**: ubuntu-latest-4-cores" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 构建信息" >> $GITHUB_STEP_SUMMARY
           echo "- **版本**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **构建变体**: foss" >> $GITHUB_STEP_SUMMARY
           echo "- **发布类型**: ${{ github.event.inputs.release_type || 'beta' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **提交**: ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [[ "${{ steps.check_release.outputs.release_exists }}" == "true" ]]; then
@@ -184,8 +292,15 @@ jobs:
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 生成的 APK 文件" >> $GITHUB_STEP_SUMMARY
-          ls -la dist/ | grep .apk | awk '{print "- " $9 " (" $5 " bytes)"}' >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 生成的 APK 文件" >> $GITHUB_STEP_SUMMARY
+          for apk in dist/*.apk; do
+            if [ -f "$apk" ]; then
+              filename=$(basename "$apk")
+              size=$(du -h "$apk" | cut -f1)
+              echo "- **${filename}** (${size})" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 发布链接" >> $GITHUB_STEP_SUMMARY
-          echo "- [GitHub Release](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 发布链接" >> $GITHUB_STEP_SUMMARY
+          echo "- [📋 GitHub Release](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ steps.version.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [📦 Actions 工件](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})" >> $GITHUB_STEP_SUMMARY
