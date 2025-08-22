@@ -262,6 +262,22 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                     }
 
                     canvas.drawText(dayNumber, xPosCenter, textY, textPaint)
+                    
+                    // 绘制农历信息
+                    day.lunarDate?.let { lunarDate ->
+                        val lunarText = lunarDate.getDisplayText()
+                        val lunarPaint = Paint(textPaint).apply {
+                            textSize = textPaint.textSize * 0.6f
+                            color = if (day.isThisMonth) {
+                                textColor.adjustAlpha(MEDIUM_ALPHA)
+                            } else {
+                                textColor.adjustAlpha(LOWER_ALPHA)
+                            }
+                        }
+                        val lunarTextY = textY + lunarPaint.textSize + resources.getDimensionPixelSize(R.dimen.tiny_margin)
+                        canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
+                    }
+                    
                     dayVerticalOffsets.put(day.indexOnMonthView, (verticalOffset + textPaint.textSize * 2).toInt())
                 }
                 curId++
