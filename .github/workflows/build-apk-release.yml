@@ -363,7 +363,7 @@ jobs:
           echo "### ⏱️ 构建时间" >> $GITHUB_STEP_SUMMARY
           echo "- **开始时间**: ${BUILD_START_TIME}" >> $GITHUB_STEP_SUMMARY
           echo "- **构建时长**: ${BUILD_DURATION}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner**: ubuntu-latest-4-cores" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runner**: ubuntu-latest" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 构建信息" >> $GITHUB_STEP_SUMMARY
           echo "- **版本**: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY

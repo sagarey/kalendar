@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   emulator-test:
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       # 优化 Gradle 性能
@@ -388,7 +388,7 @@ jobs:
           echo "### ⏱️ 测试时间" >> $GITHUB_STEP_SUMMARY
           echo "- **测试分支**: $BRANCH_NAME" >> $GITHUB_STEP_SUMMARY
           echo "- **测试时长**: ${TEST_DURATION}s" >> $GITHUB_STEP_SUMMARY
-          echo "- **Runner**: ubuntu-latest-4-cores" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runner**: ubuntu-latest" >> $GITHUB_STEP_SUMMARY
           echo "- **完成时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
