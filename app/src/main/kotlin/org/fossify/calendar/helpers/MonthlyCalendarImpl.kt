@@ -17,7 +17,6 @@ class MonthlyCalendarImpl(val callback: MonthlyCalendar, val context: Context) {
 
     private val mToday: String = DateTime().toString(Formatter.DAYCODE_PATTERN)
     private var mEvents = ArrayList<Event>()
-    private val lunarCalendar = LunarCalendarSimple() // 添加简化农历计算实例
 
     lateinit var mTargetDate: DateTime
 
@@ -71,29 +70,7 @@ class MonthlyCalendarImpl(val callback: MonthlyCalendar, val context: Context) {
 
             val newDay = curDay.withDayOfMonth(value)
             val dayCode = Formatter.getDayCodeFromDateTime(newDay)
-            
-            // 计算农历日期
-            val lunarDate = try {
-                lunarCalendar.solarToLunar(
-                    newDay.year, 
-                    newDay.monthOfYear, 
-                    newDay.dayOfMonth
-                )
-            } catch (e: Exception) {
-                null // 如果计算失败，农历日期为空
-            }
-            
-            val day = DayMonthly(
-                value = value, 
-                isThisMonth = isThisMonth, 
-                isToday = isToday, 
-                code = dayCode, 
-                weekOfYear = newDay.weekOfWeekyear, 
-                dayEvents = ArrayList(), 
-                indexOnMonthView = i, 
-                isWeekend = context.isWeekendIndex(i),
-                lunarDate = lunarDate // 设置农历日期
-            )
+            val day = DayMonthly(value, isThisMonth, isToday, dayCode, newDay.weekOfWeekyear, ArrayList(), i, context.isWeekendIndex(i))
             days.add(day)
             value++
         }
