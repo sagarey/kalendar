@@ -19,7 +19,7 @@ concurrency:
 jobs:
   emulator-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 35  # 4核心优化后，缩短超时时间
+    timeout-minutes: 45  # 4核心优化后，缩短超时时间
     env:
       # 优化 Gradle 性能 - ubuntu-latest 4核心配置
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
@@ -342,42 +342,100 @@ jobs:
 
 
           
-      - name: Emulator Final Check
-        timeout-minutes: 3
+      - name: Emulator Stability Test
+        timeout-minutes: 8
         run: |
-          echo "🔍 模拟器最终状态检查..."
+          echo "🕒 模拟器稳定性测试 (长期运行)..."
           
-          # 等待确保模拟器完全稳定
-          echo "⏳ 等待模拟器稳定..."
-          sleep 15
-          
-          # 检查设备状态
-          echo "📱 设备列表:"
-          adb devices -l
-          
-          # 获取设备
+          # 获取设备信息
           DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
-          if [ -n "$DEVICE" ]; then
-            echo "📱 找到设备: $DEVICE"
-            
-            # 全面的设备状态检查
-            echo "🔍 设备详细状态:"
-            echo "  启动状态: $(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo 'unknown')"
-            echo "  Android版本: $(adb -s $DEVICE shell getprop ro.build.version.release 2>/dev/null || echo 'unknown')"
-            echo "  API级别: $(adb -s $DEVICE shell getprop ro.build.version.sdk 2>/dev/null || echo 'unknown')"
-            echo "  设备型号: $(adb -s $DEVICE shell getprop ro.product.model 2>/dev/null || echo 'unknown')"
-            
-            # 存储空间检查
-            echo "💾 存储状态:"
-            adb -s $DEVICE shell df /data 2>/dev/null | head -2 || echo "无法获取存储信息"
-            
-            # 包管理器状态
-            echo "📦 包管理器测试:"
-            adb -s $DEVICE shell pm list packages | head -3 || echo "包管理器异常"
-            
-            echo "✅ 模拟器状态检查完成"
-          else
+          if [ -z "$DEVICE" ]; then
             echo "❌ 未找到模拟器设备"
+            exit 1
+          fi
+          
+          echo "📱 使用设备: $DEVICE"
+          
+          # 详细初始状态检查
+          echo "🔍 初始设备状态:"
+          echo "  启动状态: $(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo 'unknown')"
+          echo "  Android版本: $(adb -s $DEVICE shell getprop ro.build.version.release 2>/dev/null || echo 'unknown')"
+          echo "  API级别: $(adb -s $DEVICE shell getprop ro.build.version.sdk 2>/dev/null || echo 'unknown')"
+          
+          # 稳定性测试循环
+          TEST_START_TIME=$(date +%s)
+          ITERATION=1
+          FAILURE_COUNT=0
+          SUCCESS_COUNT=0
+          MAX_ITERATIONS=36  # 6分钟，每10秒一次
+          
+          echo "🔄 开始稳定性测试循环 (6分钟)..."
+          
+          while [ $ITERATION -le $MAX_ITERATIONS ]; do
+            CURRENT_TIME=$(date +%s)
+            ELAPSED=$((CURRENT_TIME - TEST_START_TIME))
+            MINUTES=$((ELAPSED / 60))
+            SECONDS=$((ELAPSED % 60))
+            
+            printf "[$ITERATION/$MAX_ITERATIONS] %02d:%02d测试..." $MINUTES $SECONDS
+            
+            # 测试1: 设备连接性
+            if adb -s $DEVICE shell echo "ping" >/dev/null 2>&1; then
+              printf " ✅连接"
+              SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            else
+              printf " ❌连接"
+              FAILURE_COUNT=$((FAILURE_COUNT + 1))
+            fi
+            
+            # 测试2: 系统响应性
+            if adb -s $DEVICE shell getprop sys.boot_completed >/dev/null 2>&1; then
+              printf " ✅响应"
+            else
+              printf " ❌响应"
+              FAILURE_COUNT=$((FAILURE_COUNT + 1))
+            fi
+            
+            # 测试3: 包管理器 (每5次检查一次)
+            if [ $((ITERATION % 5)) -eq 0 ]; then
+              if adb -s $DEVICE shell pm list packages | head -1 >/dev/null 2>&1; then
+                printf " ✅包管理"
+              else
+                printf " ❌包管理"
+                FAILURE_COUNT=$((FAILURE_COUNT + 1))
+              fi
+            fi
+            
+            printf "\n"
+            
+            # 如果失败太多，提前退出
+            if [ $FAILURE_COUNT -gt 8 ]; then
+              echo "❌ 失败次数过多 ($FAILURE_COUNT)，模拟器不稳定"
+              exit 1
+            fi
+            
+            # 等待10秒
+            sleep 10
+            ITERATION=$((ITERATION + 1))
+          done
+          
+          TOTAL_TIME=$(($(date +%s) - TEST_START_TIME))
+          SUCCESS_RATE=$(( SUCCESS_COUNT * 100 / (SUCCESS_COUNT + FAILURE_COUNT) ))
+          
+          echo "🎉 稳定性测试完成！"
+          echo "📊 测试统计:"
+          echo "  运行时间: ${TOTAL_TIME}秒 ($(( TOTAL_TIME / 60 ))分钟)"
+          echo "  总测试: $((SUCCESS_COUNT + FAILURE_COUNT)) 次"
+          echo "  成功: $SUCCESS_COUNT 次"
+          echo "  失败: $FAILURE_COUNT 次"
+          echo "  成功率: ${SUCCESS_RATE}%"
+          
+          if [ $FAILURE_COUNT -eq 0 ]; then
+            echo "✅ 模拟器完全稳定！"
+          elif [ $SUCCESS_RATE -gt 80 ]; then
+            echo "✅ 模拟器基本稳定 (成功率>80%)"
+          else
+            echo "⚠️ 模拟器稳定性较差 (成功率≤80%)"
             exit 1
           fi
 
