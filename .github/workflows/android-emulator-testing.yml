@@ -84,6 +84,7 @@ jobs:
             adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
             
             # 截图
+            sleep 3
             adb exec-out screencap -p > calendar_screenshot.png
 
       - name: Upload Screenshot
