@@ -107,22 +107,7 @@ jobs:
           echo "## 📊 测试环境" >> $GITHUB_STEP_SUMMARY
           echo "- **Android 版本**: API 34 (Android 14)" >> $GITHUB_STEP_SUMMARY
           echo "- **设备型号**: Pixel 6" >> $GITHUB_STEP_SUMMARY
-          echo "- **系统语言**: 中文 (zh-CN)" >> $GITHUB_STEP_SUMMARY
+          echo "- **应用语言**: 中文 (zh-CN)" >> $GITHUB_STEP_SUMMARY
           echo "- **内存配置**: 8GB" >> $GITHUB_STEP_SUMMARY
           echo "- **CPU 配置**: 4 核心" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📸 应用截图" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f "calendar_screenshot.png" ]; then
-            # Markdown data URI
-            echo "![日历应用截图](data:image/png;base64,$(base64 -w 0 calendar_screenshot.png))" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            # HTML 兜底
-            echo "<img alt=\"日历应用截图\" src=\"data:image/png;base64,$(base64 -w 0 calendar_screenshot.png)\" />" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ 截图生成失败" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📦 下载文件" >> $GITHUB_STEP_SUMMARY
-          echo "📱 [下载应用截图](../../../actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
