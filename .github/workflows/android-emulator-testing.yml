@@ -85,15 +85,11 @@ jobs:
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
-      - name: Install Android SDK Components
+      - name: Setup Android SDK
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
-        run: |
-          echo "y" | sdkmanager \
-            "platform-tools" \
-            "platforms;android-${{ env.API_LEVEL }}" \
-            "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" \
-            "system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}" \
-            "emulator"
+        uses: android-actions/setup-android@v3
+        with:
+          packages: tools platform-tools platforms;android-${{ env.API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }} emulator
 
       - name: Setup AVD
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
