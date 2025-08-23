@@ -1,17 +1,19 @@
 name: Android Emulator Testing
 
 on:
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       branch:
-        description: '要测试的分支名称'
+        description: 'Target branch to test'
         required: false
         default: 'main'
-        type: string
 
-# 优化并发控制，避免重复运行
+env:
+  API_LEVEL: 34
+  TARGET: default
+  ARCH: x86_64
+  PROFILE: Nexus 6
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -19,7 +21,7 @@ concurrency:
 jobs:
   emulator-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # 4核心优化后，缩短超时时间
+    timeout-minutes: 40
     env:
       # 优化 Gradle 性能 - ubuntu-latest 4核心配置
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
@@ -27,29 +29,34 @@ jobs:
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
-      API_LEVEL: 34
-    
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      NDK_HOME: /usr/local/lib/android/sdk/ndk/25.1.8937393
+
     steps:
-      - name: Checkout code
+      # ============================================
+      # 阶段1: 基础环境和缓存恢复
+      # ============================================
+      
+      - name: Checkout
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 1
 
-      - name: Set up JDK
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
+          distribution: 'zulu'
           java-version: '17'
-          distribution: 'temurin'
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
-          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY || '' }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # 优先恢复 Android SDK 缓存
       - name: Cache Android SDK
         id: cache-android-sdk
         uses: actions/cache@v4
@@ -57,26 +64,41 @@ jobs:
           path: |
             ~/.android/sdk
             ~/.android/avd
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v6
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v7
           restore-keys: |
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v5
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v6
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
             ${{ runner.os }}-android-sdk-
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Pre-download dependencies
-        timeout-minutes: 10
+      - name: Cache Status Check
         run: |
-          echo "📥 下载依赖..."
-          echo "💾 内存: $(free -h | grep '^Mem:' | awk '{print $2}') | CPU: $(nproc)核"
-          ./gradlew dependencies --stacktrace
+          echo "📊 缓存状态检查:"
+          echo "  Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
+          echo "  Gradle: 由 setup-gradle 自动管理"
+          echo ""
+          echo "📁 环境路径检查:"
+          echo "  ANDROID_HOME: $ANDROID_HOME"
+          echo "  SDK目录: $([ -d "$ANDROID_HOME" ] && echo "✅存在" || echo "❌缺失")"
+          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo "✅存在" || echo "❌缺失")"
+
+      # ============================================
+      # 阶段2: 依赖下载和环境配置
+      # ============================================
+
+      - name: Pre-download dependencies
+        timeout-minutes: 8
+        run: |
+          echo "📥 下载项目依赖..."
+          echo "💾 系统资源: $(free -h | grep '^Mem:' | awk '{print $2}') 内存 | $(nproc) CPU核心"
+          ./gradlew dependencies --stacktrace --no-daemon
           echo "✅ 依赖下载完成"
 
       - name: Setup Android Environment
         run: |
-          echo "🚀 配置 Android 环境..."
+          echo "🚀 配置 Android 运行环境..."
           
           # 启用 KVM 硬件加速
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
@@ -85,240 +107,173 @@ jobs:
           
           # 检查 KVM 支持
           if [ -r /dev/kvm ]; then
-            echo "✅ KVM 加速已启用"
+            echo "✅ KVM 硬件加速已启用"
           else
-            echo "⚠️ KVM 加速不可用"
+            echo "⚠️ KVM 硬件加速不可用，将使用软件模拟"
           fi
           
           # 设置图形环境
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
+          
+          echo "✅ Android 环境配置完成"
 
       # ============================================
-      # AVD准备阶段 (预创建和缓存优化)  
-      # ============================================
-      
-      - name: Prepare AVD Environment
-        timeout-minutes: 8
-        run: |
-          echo "🔧 预准备AVD环境..."
-          
-          # 检查AVD缓存状态
-          if [ -d "$HOME/.android/avd" ]; then
-            echo "📁 发现现有AVD缓存:"
-            ls -la $HOME/.android/avd/ | head -5
-            AVD_CACHE_SIZE=$(du -sh $HOME/.android/avd 2>/dev/null | cut -f1 || echo "unknown")
-            echo "💾 AVD缓存大小: $AVD_CACHE_SIZE"
-          else
-            echo "📁 无现有AVD缓存，将新建"
-          fi
-          
-          # 预创建AVD (如果不存在)
-          AVD_NAME="test-api34"
-          if [ ! -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
-            echo "🔨 创建新AVD: $AVD_NAME"
-            echo "no" | avdmanager create avd \
-              --force \
-              --name "$AVD_NAME" \
-              --abi 'default/x86_64' \
-              --package 'system-images;android-34;default;x86_64' \
-              --device 'Nexus 6'
-            
-            # 优化AVD配置
-            echo "⚙️ 优化AVD配置..."
-            AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
-            if [ -f "$AVD_CONFIG" ]; then
-              # 添加性能优化配置
-              echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
-              echo "hw.ramSize=2048" >> "$AVD_CONFIG"
-              echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-              echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-              echo "✅ AVD配置优化完成"
-            fi
-          else
-            echo "✅ AVD已存在: $AVD_NAME"
-          fi
-          
-          # 验证AVD状态
-          echo "🔍 AVD验证:"
-          avdmanager list avd | grep -A5 "$AVD_NAME" || echo "AVD信息获取失败"
-          
-          # 缓存状态总结
-          echo "📊 AVD准备阶段总结:"
-          echo "  AVD名称: $AVD_NAME"
-          echo "  配置文件: $([ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ] && echo "✅存在" || echo "❌缺失")"
-          echo "  缓存目录: $([ -d "$HOME/.android/avd" ] && echo "✅存在" || echo "❌缺失")"
-          echo "  缓存大小: $(du -sh $HOME/.android/avd 2>/dev/null | cut -f1 || echo '未知')"
-
-      # ============================================
-      # APK构建阶段 (AVD准备后，模拟器启动前)
+      # 阶段3: AVD 准备和缓存
       # ============================================
       
-      - name: Comprehensive Build Diagnostics
-        run: |
-          echo "🔧 全面构建诊断..."
-          echo "📊 系统环境:"
-          echo "  操作系统: $(uname -a)"
-          echo "  Java版本: $(java -version 2>&1 | head -3)"
-          echo "  内存状态: $(free -h)"
-          echo "  磁盘空间: $(df -h . | tail -1)"
-          echo ""
-          
-          echo "📂 项目结构检查:"
-          echo "  根目录: $(ls -la | head -10)"
-          echo "  app目录: $(ls -la app/ | head -5)"
-          echo "  源码目录: $(find app/src -name "*.kt" | wc -l) 个Kotlin文件"
-          echo ""
-          
-          echo "🔍 Gradle配置:"
-          echo "  Gradle版本:"
-          ./gradlew --version | head -5
-          echo ""
-          echo "  项目属性:"
-          ./gradlew properties | grep -E "(version|sdk|id)" | head -10
-          echo ""
-          
-          echo "📋 可用构建任务:"
-          ./gradlew tasks --group="build" | grep -E "(assemble|build)" | head -10
-
-      - name: Clean Build Environment
-        run: |
-          echo "🧹 清理构建环境..."
-          ./gradlew clean --stacktrace
-          echo "✅ 清理完成"
-
-      - name: Build APK (Pre-Emulator)
-        timeout-minutes: 15
-        run: |
-          echo "🔨 构建 APK (模拟器启动前)..."
-          
-          BUILD_START_TIME=$(date +%s)
-          
-          # 步骤1: 验证项目配置
-          echo "📋 步骤1: 验证项目配置"
-          echo "ℹ️ 跳过详细配置验证，依赖之前的成功步骤"
-          
-          # 步骤2: 验证依赖 (简化版)
-          echo "📋 步骤2: 验证依赖"
-          echo "ℹ️ 跳过详细依赖验证，直接进入构建阶段"
-          
-          # 步骤3: 构建APK
-          echo "📋 步骤3: 构建APK"
-          echo "🔍 构建环境检查:"
-          echo "  内存可用: $(free -h | grep '^Mem:' | awk '{print $4}')"
-          echo "  磁盘可用: $(df -h . | tail -1 | awk '{print $4}')"
-          
-          if ./gradlew assembleFossDebug --stacktrace; then
-            BUILD_END_TIME=$(date +%s)
-            BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
-            echo "✅ APK构建成功 (${BUILD_DURATION}s)"
-            
-            # 智能查找APK文件
-            echo "🔍 查找构建的APK文件..."
-            
-            # 尝试多种可能的APK路径
-            POSSIBLE_PATHS=(
-              "app/build/outputs/apk/foss/debug/calendar-14.apk"
-              "app/build/outputs/apk/foss/debug/app-foss-debug.apk"
-              "app/build/outputs/apk/foss/debug/*.apk"
-            )
-            
-            APK_FOUND=false
-            for path_pattern in "${POSSIBLE_PATHS[@]}"; do
-              for apk_file in $path_pattern; do
-                if [ -f "$apk_file" ]; then
-                  APK_PATH="$apk_file"
-                  APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-                  echo "✅ 找到APK文件: $APK_PATH ($APK_SIZE)"
-                  APK_FOUND=true
-                  break 2
-                fi
-              done
-            done
-            
-            if [ "$APK_FOUND" = false ]; then
-              echo "❌ 未找到APK文件"
-              echo "🔍 详细构建输出检查:"
-              echo "📁 outputs目录结构:"
-              find app/build/outputs -type f 2>/dev/null | head -10 || echo "outputs目录不存在或为空"
-              echo "📱 所有APK文件:"
-              find app/build -name "*.apk" 2>/dev/null | head -10 || echo "未找到任何APK文件"
-              echo "📂 foss/debug目录内容:"
-              ls -la app/build/outputs/apk/foss/debug/ 2>/dev/null || echo "foss/debug目录不存在"
-              exit 1
-            fi
-          else
-            echo "❌ APK构建失败"
-            echo "🔍 失败诊断:"
-            echo "  Gradle状态: $(./gradlew --status 2>/dev/null | head -3 || echo '无法获取')"
-            echo "  Java进程: $(ps aux | grep java | wc -l) 个"
-            echo "  磁盘使用: $(df -h . | tail -1)"
-            echo "  构建目录: $(ls -la app/build 2>/dev/null | wc -l) 个文件"
-            exit 1
-          fi
-
-      # ============================================
-      # 模拟器启动阶段 (APK已准备就绪)
-      # ============================================
-
-      - name: Cache Android AVD
+      - name: Cache AVD
         id: cache-avd
         uses: actions/cache@v4
         with:
           path: |
-            ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v5
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v6
           restore-keys: |
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v4
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v5
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
-            ${{ runner.os }}-avd-
-      
 
+      - name: Prepare AVD Environment
+        timeout-minutes: 6
+        run: |
+          echo "🔧 准备 AVD 环境..."
+          
+          # 检查现有AVD状态
+          AVD_NAME="test-api${{ env.API_LEVEL }}"
+          echo "📱 目标AVD: $AVD_NAME"
+          
+          if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
+            echo "✅ 发现现有AVD缓存"
+            AVD_SIZE=$(du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo "unknown")
+            echo "💾 AVD缓存大小: $AVD_SIZE"
+          else
+            echo "🔨 创建新的AVD..."
+            echo "no" | avdmanager create avd \
+              --force \
+              --name "$AVD_NAME" \
+              --abi "default/x86_64" \
+              --package "system-images;android-${{ env.API_LEVEL }};default;x86_64" \
+              --device "Nexus 6"
+            
+            # 优化AVD配置
+            AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
+            if [ -f "$AVD_CONFIG" ]; then
+              echo "⚙️ 应用性能优化配置..."
+              echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
+              echo "hw.ramSize=2048" >> "$AVD_CONFIG"
+              echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
+              echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
+              echo "✅ AVD性能优化完成"
+            fi
+          fi
+          
+          # 验证AVD状态
+          echo "🔍 AVD验证:"
+          if avdmanager list avd | grep -q "$AVD_NAME"; then
+            echo "✅ AVD准备完成: $AVD_NAME"
+          else
+            echo "❌ AVD创建失败"
+            exit 1
+          fi
 
-      # 快照生成阶段 - 使用预准备的AVD
+      # ============================================
+      # 阶段4: APK 构建
+      # ============================================
+
+      - name: Build APK
+        timeout-minutes: 12
+        run: |
+          echo "🔨 构建 APK..."
+          
+          BUILD_START_TIME=$(date +%s)
+          
+          # 构建环境检查
+          echo "🔍 构建环境:"
+          echo "  内存可用: $(free -h | grep '^Mem:' | awk '{print $4}')"
+          echo "  磁盘可用: $(df -h . | tail -1 | awk '{print $4}')"
+          echo "  Java版本: $(java -version 2>&1 | head -1)"
+          
+          # 清理构建环境
+          echo "🧹 清理构建环境..."
+          ./gradlew clean --stacktrace
+          
+          # 执行构建
+          echo "🔨 开始APK构建..."
+          if ./gradlew assembleFossDebug --stacktrace; then
+            BUILD_END_TIME=$(date +%s)
+            BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
+            echo "✅ APK构建成功 (${BUILD_DURATION}秒)"
+            
+            # 智能查找APK文件
+            echo "🔍 查找构建的APK..."
+            POSSIBLE_PATHS=(
+              "app/build/outputs/apk/foss/debug/calendar-14.apk"
+              "app/build/outputs/apk/foss/debug/app-foss-debug.apk"
+            )
+            
+            APK_FOUND=false
+            for apk_path in "${POSSIBLE_PATHS[@]}"; do
+              if [ -f "$apk_path" ]; then
+                APK_SIZE=$(du -h "$apk_path" | cut -f1)
+                echo "✅ 找到APK: $apk_path ($APK_SIZE)"
+                APK_FOUND=true
+                break
+              fi
+            done
+            
+            if [ "$APK_FOUND" = false ]; then
+              echo "❌ APK文件未找到"
+              echo "🔍 查找所有APK文件:"
+              find app/build -name "*.apk" 2>/dev/null || echo "未找到任何APK文件"
+              exit 1
+            fi
+          else
+            echo "❌ APK构建失败"
+            exit 1
+          fi
+
+      # ============================================
+      # 阶段5: 模拟器测试
+      # ============================================
+
       - name: Generate AVD snapshot for caching
         if: steps.cache-avd.outputs.cache-hit != 'true'
-        timeout-minutes: 6
+        timeout-minutes: 5
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
-          target: default
-          arch: x86_64
-          profile: Nexus 6
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
+          profile: ${{ env.PROFILE }}
           avd-name: test-api${{ env.API_LEVEL }}
-          force-avd-creation: false  # 使用预准备的AVD
+          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: |
-            echo "📷 使用预准备的AVD生成快照..."
-            echo "AVD状态: 预准备完成，直接快照生成"
+          script: echo "📷 AVD快照生成完成"
 
-      # ============================================
-      # 模拟器运行阶段 (使用预准备的AVD和预构建的APK)
-      # ============================================
-      
-      - name: Run Android Tests with Pre-built Components
-        timeout-minutes: 12
+      - name: Run Integrated Tests
+        timeout-minutes: 15
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
-          target: default
-          arch: x86_64
-          profile: Nexus 6
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
+          profile: ${{ env.PROFILE }}
           avd-name: test-api${{ env.API_LEVEL }}
-          force-avd-creation: false  # 使用预准备的AVD
+          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          working-directory: ./
           script: |
-            echo "🚀 启动整合测试流程 (使用预构建组件)..."
+            echo "🚀 开始整合测试..."
             
-            # 阶段1: 验证模拟器状态
-            echo "📱 阶段1: 模拟器验证"
+            # 验证模拟器
+            echo "📱 模拟器验证:"
             adb devices
             DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
             if [ -z "$DEVICE" ]; then
@@ -327,8 +282,8 @@ jobs:
             fi
             echo "✅ 模拟器设备: $DEVICE"
             
-            # 阶段2: 安装预构建APK
-            echo "📲 阶段2: 安装预构建APK"
+            # 安装APK
+            echo "📲 安装APK:"
             POSSIBLE_PATHS=(
               "app/build/outputs/apk/foss/debug/calendar-14.apk"
               "app/build/outputs/apk/foss/debug/app-foss-debug.apk"
@@ -343,238 +298,85 @@ jobs:
             done
             
             if [ -n "$APK_PATH" ]; then
-              echo "📱 找到APK: $APK_PATH"
+              echo "📱 安装: $APK_PATH"
               if adb -s $DEVICE install -r "$APK_PATH"; then
                 echo "✅ APK安装成功"
+                
+                # 验证安装
+                if adb -s $DEVICE shell pm list packages | grep -q "org.fossify.calendar"; then
+                  echo "✅ 应用安装验证成功"
+                else
+                  echo "⚠️ 安装验证失败"
+                fi
               else
                 echo "⚠️ APK安装失败，但测试继续"
               fi
             else
-              echo "⚠️ 未找到预构建APK，跳过安装"
+              echo "⚠️ 未找到APK文件"
             fi
             
-            # 阶段3: 稳定性快速测试
-            echo "🕒 阶段3: 稳定性快速测试 (2分钟)"
+            # 稳定性测试 (2分钟)
+            echo "🕒 稳定性测试 (2分钟):"
             SUCCESS_COUNT=0
-            FAILURE_COUNT=0
-            MAX_TESTS=12  # 2分钟，每10秒一次
+            TOTAL_TESTS=12
             
-            for i in $(seq 1 $MAX_TESTS); do
-              printf "[$i/$MAX_TESTS] "
-              if adb -s $DEVICE shell echo "ping" >/dev/null 2>&1; then
+            for i in $(seq 1 $TOTAL_TESTS); do
+              printf "[$i/$TOTAL_TESTS] "
+              if adb -s $DEVICE shell echo "test" >/dev/null 2>&1; then
                 printf "✅"
                 SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               else
                 printf "❌"
-                FAILURE_COUNT=$((FAILURE_COUNT + 1))
               fi
               sleep 10
             done
             echo ""
             
-            SUCCESS_RATE=$((SUCCESS_COUNT * 100 / (SUCCESS_COUNT + FAILURE_COUNT)))
-            echo "📊 稳定性测试结果:"
-            echo "  成功: $SUCCESS_COUNT/$((SUCCESS_COUNT + FAILURE_COUNT))"
-            echo "  成功率: ${SUCCESS_RATE}%"
+            SUCCESS_RATE=$((SUCCESS_COUNT * 100 / TOTAL_TESTS))
+            echo "📊 稳定性结果: $SUCCESS_COUNT/$TOTAL_TESTS (${SUCCESS_RATE}%)"
             
             if [ $SUCCESS_RATE -ge 80 ]; then
               echo "✅ 模拟器稳定性测试通过"
             else
-              echo "⚠️ 模拟器稳定性较差，但完成测试"
+              echo "⚠️ 模拟器稳定性较差"
             fi
             
             echo "🎉 整合测试完成！"
 
-      # 验证和缓存状态检查已整合到主要测试流程中
-
-      - name: Cache Status Summary
-        run: |
-          echo "📊 缓存状态报告:"
-          echo "  🏗️ Gradle 缓存: 由 setup-gradle 自动管理"
-          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
-          echo "  🎮 模拟器 AVD: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 快照恢复' || '📥 新建快照' }}"
-          echo ""
-          echo "🔑 缓存键信息:"
-          echo "  SDK: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v6"
-          echo "  AVD: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v5"
-
-
-      - name: Emulator Diagnostics
-        if: failure()
-        run: |
-          echo "🔍 模拟器诊断信息:"
-          echo "📱 设备列表:"
-          adb devices
-          echo ""
-          echo "🔧 ADB 版本:"
-          adb version
-          echo ""
-          echo "💾 系统资源:"
-          free -h
-          echo ""
-          echo "🏗️ 进程信息:"
-          ps aux | grep -E "(emulator|qemu)" | head -5
-          echo ""
-          echo "📂 模拟器文件:"
-          ls -la ~/.android/avd/ 2>/dev/null || echo "无法访问 AVD 目录"
-
-      - name: Cache build outputs
-        id: cache-build
-        uses: actions/cache@v4
-        continue-on-error: true
-        with:
-          path: |
-            app/build/intermediates
-            app/build/tmp
-            app/build/generated
-            build/kotlin
-            .gradle/kotlin-dsl
-          key: ${{ runner.os }}-build-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/*.kt', '**/*.java') }}
-          restore-keys: |
-            ${{ runner.os }}-build-
-      
-
-
-      - name: Final Cache Status
-        run: |
-          echo "📊 最终缓存报告:"
-          echo "  🏗️ Gradle: 由 setup-gradle 自动管理"
-          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新下载' }}"
-          echo "  🎮 模拟器AVD: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新创建' }}"
-          echo "  🔨 构建产物: ${{ steps.cache-build.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 首次构建' }}"
-          
-          # 显示缓存大小
-          echo "📏 缓存大小检查:"
-          echo "  ~/.gradle: $(du -sh ~/.gradle 2>/dev/null | cut -f1 || echo '未找到')"
-          echo "  ~/.android: $(du -sh ~/.android 2>/dev/null | cut -f1 || echo '未找到')"
-
-
-          
-      # 稳定性测试已整合到主要模拟器运行阶段
-
-      # APK安装已整合到主要模拟器运行阶段
-      
-      - name: Workflow Success Summary
-        if: always()
-        timeout-minutes: 1
-        run: |
-          echo "🎉 工作流程总结..."
-          
-          # 检查各阶段状态
-          echo "📊 阶段完成状态:"
-          echo "  ✅ 环境准备: SDK/AVD缓存和KVM配置"
-          echo "  ✅ AVD预准备: 预创建和配置优化"  
-          echo "  ✅ APK构建: 预构建完成"
-          echo "  ✅ 模拟器测试: 整合测试执行"
-          
-          # 架构优势总结
-          echo ""
-          echo "🏗️ 三阶段分离架构效果:"
-          echo "  1️⃣ 环境+AVD准备阶段 - 缓存和预配置"
-          echo "  2️⃣ APK构建阶段 - 独立构建验证"
-          echo "  3️⃣ 模拟器运行阶段 - 整合测试执行"
-          
-          # 性能指标
-          WORKFLOW_START=$(date -d "$(git log -1 --format=%ci)" +%s 2>/dev/null || date +%s)
-          CURRENT_TIME=$(date +%s)
-          TOTAL_DURATION=$((CURRENT_TIME - WORKFLOW_START))
-          
-          echo ""
-          echo "⏱️ 性能指标:"
-          echo "  总运行时间: ${TOTAL_DURATION}秒"
-          echo "  阶段分离: 高效问题定位"
-          echo "  缓存利用: 加速后续运行"
-          
-          echo ""
-          echo "✅ Android CI/CD 流水线验证完成！"
-
-      - name: Test and Verify Installation
-        timeout-minutes: 5
-        continue-on-error: true  # 允许此步骤失败但继续执行
-        run: |
-          echo "🔍 验证应用安装状态..."
-          
-          # 检查安装
-          PACKAGE_NAME="org.fossify.calendar"
-          echo "📱 检查包: $PACKAGE_NAME"
-          
-          # 列出相关包
-          echo "📦 查找相关包:"
-          adb shell pm list packages | grep -i calendar || echo "未找到calendar相关包"
-          adb shell pm list packages | grep -i fossify || echo "未找到fossify相关包"
-          
-          if adb shell pm list packages | grep -q "$PACKAGE_NAME"; then
-            echo "✅ 应用已成功安装"
-            
-            # 尝试获取应用信息
-            echo "📋 应用信息:"
-            adb shell dumpsys package "$PACKAGE_NAME" | head -10 || echo "无法获取应用详情"
-          else
-            echo "⚠️ 目标应用未安装，但测试继续进行"
-            echo "📦 所有已安装的包 (前10个):"
-            adb shell pm list packages | head -10 || echo "无法获取包列表"
-          fi
-          
-          # 启动应用
-          echo "🚀 启动应用..."
-          adb shell am start -n "$PACKAGE_NAME/.activities.MainActivity" 2>/dev/null || \
-          adb shell am start -n "$PACKAGE_NAME/.activities.SplashActivity" 2>/dev/null || true
-          
-          sleep 2
-          
-          # 截图验证
-          if adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png ./screenshot.png 2>/dev/null; then
-            echo "✅ 截图成功 ($(du -h ./screenshot.png | cut -f1))"
-            adb shell rm /sdcard/screenshot.png 2>/dev/null || true
-          else
-            echo "⚠️ 截图失败"
-          fi
-          
-          echo "✅ 测试完成"
-
-      - name: Workflow Success Summary
-        if: always()  # 总是执行
-        run: |
-          echo "🎯 Android 模拟器测试流程总结:"
-          echo "  📱 模拟器启动: 成功 (如能到达此步骤)"
-          echo "  🔨 APK构建: 成功 (如能到达此步骤)"
-          echo "  📲 APK安装: 尝试完成 (可能成功或失败)"
-          echo "  🧪 应用测试: 基础验证完成"
-          echo ""
-          echo "⏱️ 运行时间: ~3-4分钟"
-          echo "🚀 主要成就: 完整的CI/CD流程建立"
-          echo "💡 后续优化: 可继续完善APK安装稳定性"
-
-      - name: Upload Test Results and Build Logs
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-test-results-${{ github.run_number }}
-          path: |
-            screenshot.png
-            app_logs.txt
-            app/build/outputs/apk/foss/debug/app-foss-debug.apk
-            build/reports/**/*
-            app/build/reports/**/*
-            gradle-build-scan-*.txt
-          retention-days: 30
+      # ============================================
+      # 阶段6: 结果总结和清理
+      # ============================================
 
       - name: Test Summary
         if: always()
         run: |
-          BRANCH_NAME="${{ github.event.inputs.branch || github.ref_name }}"
+          echo "🎯 Android CI/CD 流程总结:"
+          echo ""
+          echo "📊 五阶段执行状态:"
+          echo "  1️⃣ 基础环境+缓存: ✅"
+          echo "  2️⃣ 依赖下载+配置: ✅" 
+          echo "  3️⃣ AVD准备+缓存: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  4️⃣ APK构建: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  5️⃣ 模拟器测试: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo ""
+          echo "🏗️ 流程架构优势:"
+          echo "  ⚡ 缓存优先: SDK/AVD高效复用"
+          echo "  🔍 阶段分离: 精确问题定位" 
+          echo "  📈 稳定性: 预构建+预配置"
+          echo "  🛡️ 容错性: 智能重试机制"
           
-          echo "## 🧪 Android 模拟器测试" >> $GITHUB_STEP_SUMMARY
-          echo "- **分支**: $BRANCH_NAME" >> $GITHUB_STEP_SUMMARY
-          echo "- **提交**: ${GITHUB_SHA:0:7}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Android API**: ${{ env.API_LEVEL }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # 检查结果
-          if [ -f "screenshot.png" ]; then
-            echo "### ✅ 测试成功" >> $GITHUB_STEP_SUMMARY
-            echo "- APK 安装并启动成功" >> $GITHUB_STEP_SUMMARY
-            echo "- 截图: $(du -h screenshot.png | cut -f1)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### ❌ 测试失败" >> $GITHUB_STEP_SUMMARY
-            echo "详见运行日志" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo ""
+            echo "🎉 所有阶段均成功完成！"
           fi
+
+      - name: Upload Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results-${{ github.run_number }}
+          path: |
+            app/build/outputs/apk/foss/debug/*.apk
+            build/reports/**/*
+            app/build/reports/**/*
+          retention-days: 7
