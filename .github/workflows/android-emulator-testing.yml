@@ -60,29 +60,32 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_6
-          # Ubuntu 兼容性优化配置 - 8GB内存
+          # Ubuntu 兼容性优化配置 - 8GB内存 + 中文系统
           emulator-options: >-
             -no-window -no-snapshot -no-audio -no-boot-anim 
             -gpu swiftshader_indirect -netdelay none -netspeed full 
             -cores 4 -memory 8192 
             -camera-back none -camera-front none
+            -prop persist.sys.locale=zh-CN -prop persist.sys.language=zh -prop persist.sys.country=CN
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
           working-directory: ./
           script: |
-            # 快速等待和安装流程
+            # 等待设备启动完成 (已预设中文环境)
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            
+            # 安装并启动应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
-            adb shell am start -W -n org.fossify.calendar.debug/.activities.SplashActivity
-            sleep 5
+            adb shell am start -W -n org.fossify.calendar.debug/.activities.SplashActivity.Green
+            sleep 8
+            
+            # 截图
             adb shell screencap -p /sdcard/screenshot.png
             adb pull /sdcard/screenshot.png calendar_screenshot.png
 
-      - name: Upload Results
+      - name: Upload Screenshot
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ github.run_number }}
-          path: |
-            app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
-            calendar_screenshot.png
+          name: calendar-screenshot-${{ github.run_number }}
+          path: calendar_screenshot.png
