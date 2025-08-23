@@ -67,11 +67,9 @@ jobs:
         with:
           path: ~/.android/sdk
           key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9
-          restore-keys: |
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v7
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
-            ${{ runner.os }}-android-sdk-
+          # 注释: 移除restore-keys，只进行精确匹配
+          # restore-keys: |
+          #   ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
 
       - name: Restore AVD Cache
         id: restore-avd-cache
@@ -79,11 +77,9 @@ jobs:
         with:
           path: ~/.android/avd
           key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8
-          restore-keys: |
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v6
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
+          # 注释: 移除restore-keys，只进行精确匹配
+          # restore-keys: |
+          #   ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
 
       - name: Cache Strategy Decision
         run: |
