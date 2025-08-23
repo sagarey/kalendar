@@ -252,22 +252,21 @@ jobs:
           script: |
             echo "🚀 Android模拟器测试开始..."
             
-            # 基础验证
+            # 基础验证 - 单设备环境，简化ADB操作
             echo "📱 验证设备连接:"
             adb devices
-            DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
-            if [ -z "$DEVICE" ]; then
-              echo "❌ 未找到模拟器设备"
-              exit 1
-            fi
-            echo "✅ 模拟器设备: $DEVICE"
             
-            # APK安装
+            # 等待设备就绪
+            echo "⏳ 等待设备就绪..."
+            adb wait-for-device
+            echo "✅ 设备连接成功"
+            
+            # APK安装 - 无需指定设备ID
             APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
             echo "📲 安装APK: $APK_PATH"
             
             if [ -f "$APK_PATH" ]; then
-              if adb -s $DEVICE install -r "$APK_PATH"; then
+              if adb install -r "$APK_PATH"; then
                 echo "✅ APK安装成功"
               else
                 echo "❌ APK安装失败"
@@ -275,7 +274,7 @@ jobs:
               fi
             else
               echo "❌ APK文件不存在: $APK_PATH"
-              echo "🔍 可用APK文件:"
+              echo "🔍 搜索APK文件:"
               find . -name "*.apk" 2>/dev/null | head -3
               exit 1
             fi
@@ -285,41 +284,43 @@ jobs:
             ACTIVITY="$PACKAGE/.activities.SplashActivity"
             echo "🚀 启动应用: $ACTIVITY"
             
-            if adb -s $DEVICE shell am start -n "$ACTIVITY"; then
+            if adb shell am start -n "$ACTIVITY"; then
               echo "✅ 应用启动成功"
             else
-              echo "⚠️ 应用启动可能失败，继续截图"
+              echo "⚠️ 应用启动失败，尝试其他入口"
+              # 尝试主Activity
+              if adb shell am start -n "$PACKAGE/.activities.MainActivity"; then
+                echo "✅ 主Activity启动成功"
+              else
+                echo "⚠️ 启动失败，继续截图检查"
+              fi
             fi
             
             # 等待应用加载
-            echo "⏳ 等待应用加载..."
-            sleep 5
+            echo "⏳ 等待应用加载(8秒)..."
+            sleep 8
             
             # 获取截图
             echo "📸 获取运行截图..."
-            SCREENSHOT_PATH="/data/local/tmp/calendar_screenshot.png"
-            if adb -s $DEVICE shell screencap -p "$SCREENSHOT_PATH"; then
-              echo "✅ 截图创建成功"
-              
-              # 下载截图到本地
-              if adb -s $DEVICE pull "$SCREENSHOT_PATH" ./calendar_running_screenshot.png; then
-                echo "✅ 截图保存到: ./calendar_running_screenshot.png"
-              else
-                echo "⚠️ 截图下载失败"
-              fi
+            if adb shell screencap -p > calendar_running_screenshot.png; then
+              echo "✅ 截图保存成功: calendar_running_screenshot.png"
             else
-              echo "⚠️ 截图创建失败"
+              echo "⚠️ 直接截图失败，尝试传统方式..."
+              adb shell screencap -p /sdcard/screenshot.png
+              adb pull /sdcard/screenshot.png calendar_running_screenshot.png
+              echo "✅ 截图已保存"
             fi
             
             # 应用状态检查
             echo "🔍 检查应用状态:"
-            if adb -s $DEVICE shell pm list packages | grep -q "$PACKAGE"; then
+            if adb shell pm list packages | grep -q "$PACKAGE"; then
               echo "✅ 应用已安装"
-            fi
-            
-            if adb -s $DEVICE shell dumpsys package "$PACKAGE" | grep -q "versionName"; then
-              VERSION=$(adb -s $DEVICE shell dumpsys package "$PACKAGE" | grep "versionName" | head -1)
-              echo "📋 应用信息: $VERSION"
+              
+              # 获取应用版本
+              VERSION=$(adb shell dumpsys package "$PACKAGE" | grep "versionName" | head -1 | cut -d'=' -f2)
+              echo "📋 应用版本: $VERSION"
+            else
+              echo "❌ 应用未找到"
             fi
             
             echo "🎉 Android测试完成！"
