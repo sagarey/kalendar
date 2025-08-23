@@ -10,9 +10,9 @@ on:
 
 env:
   API_LEVEL: 34
-  TARGET: default
+  TARGET: google_apis
   ARCH: x86_64
-  PROFILE: Nexus 6
+  PROFILE: pixel_3a
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -23,8 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # 优化 Gradle 性能 - ubuntu-latest 4核心配置
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
+      # 高级 Gradle 性能优化 - 最大化编译速度
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dorg.gradle.configuration-cache=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.daemon.jvm.options="-Xmx2g" -Dorg.gradle.jvmargs="-Xmx10g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseCompressedOops -XX:+UnlockExperimentalVMOptions -XX:+UseZGC"
+      # 额外的编译优化环境变量
+      KOTLIN_INCREMENTAL: true
+      KOTLIN_DAEMON_JVMARGS: "-Xmx2g -XX:+UseG1GC"
       # Android 相关环境变量
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -68,6 +71,21 @@ jobs:
         run: |
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
+          
+          # 检查系统资源和KVM加速支持
+          echo "📊 系统资源信息:"
+          echo "CPU核心数: $(nproc)"
+          echo "内存总量: $(free -h | grep '^Mem' | awk '{print $2}')"
+          echo "可用内存: $(free -h | grep '^Mem' | awk '{print $7}')"
+          echo "磁盘空间: $(df -h / | tail -1 | awk '{print $4}')"
+          
+          echo "🚀 检查KVM加速支持..."
+          if [ -e /dev/kvm ]; then
+            echo "✅ KVM加速可用"
+            sudo chown runner:runner /dev/kvm
+          else
+            echo "⚠️ KVM加速不可用，使用软件模拟"
+          fi
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -79,22 +97,58 @@ jobs:
           SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
           AVD_NAME="test-api${{ env.API_LEVEL }}"
           echo "no" | avdmanager create avd --force --name "$AVD_NAME" --abi "${{ env.TARGET }}/${{ env.ARCH }}" --package "$SYSTEM_IMAGE" --device "${{ env.PROFILE }}"
+          
+          # 优化AVD性能配置 - 充分利用4核心16GB配置
+          AVD_CONFIG="$ANDROID_AVD_HOME/${AVD_NAME}.avd/config.ini"
+          echo "hw.cpu.ncore=4" >> "$AVD_CONFIG"
+          echo "hw.ramSize=6144" >> "$AVD_CONFIG"
+          echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
+          echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
+          echo "hw.keyboard=yes" >> "$AVD_CONFIG"
+          echo "disk.dataPartition.size=6144MB" >> "$AVD_CONFIG"
+          echo "vm.heapSize=512" >> "$AVD_CONFIG"
 
       # ============================================
-      # 阶段4: APK 构建
+      # 阶段4: APK 构建性能优化
       # ============================================
 
-      - name: Build APK
-        timeout-minutes: 10
-        run: ./gradlew clean assembleFossDebug --stacktrace --no-daemon
+      - name: Gradle Daemon 预热和性能检测
+        run: |
+          echo "🔥 Gradle Daemon 预热..."
+          ./gradlew help --no-daemon
+          
+          echo "📊 编译环境检测:"
+          echo "Java版本: $(java -version 2>&1 | head -1)"
+          echo "Gradle版本: $(./gradlew --version | grep 'Gradle' | head -1)"
+          echo "可用处理器: $(nproc)"
+          echo "JVM最大内存: $(java -XX:+PrintFlagsFinal -version 2>/dev/null | grep MaxHeapSize | awk '{print $4/1024/1024 "MB"}' || echo 'N/A')"
+
+      - name: Build APK (高性能模式)
+        timeout-minutes: 12
+        run: |
+          echo "🚀 开始高性能APK构建..."
+          START_TIME=$(date +%s)
+          
+          # 使用优化的构建命令
+          ./gradlew clean assembleFossDebug \
+            --stacktrace \
+            --build-cache \
+            --configuration-cache \
+            --parallel \
+            --daemon \
+            --info
+          
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+          echo "✅ 构建完成，耗时: ${DURATION}秒"
 
       # ============================================
       # 阶段5: 模拟器测试 + 截图
       # ============================================
 
       - name: Android Emulator Testing with Screenshots
-        timeout-minutes: 15
-        continue-on-error: false  # 主测试步骤必须成功
+        timeout-minutes: 20
+        continue-on-error: false
         uses: reactivecircus/android-emulator-runner@v2
         env:
           ANDROID_AVD_HOME: ${{ env.ANDROID_AVD_HOME }}
@@ -105,11 +159,12 @@ jobs:
           profile: ${{ env.PROFILE }}
           avd-name: test-api${{ env.API_LEVEL }}
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 6144 -cores 4 -accel on
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: adb uninstall org.fossify.calendar.debug || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar.debug && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
+          emulator-build: 7425822
+          script: adb uninstall org.fossify.calendar.debug || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar.debug && sleep 8 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
 
       - name: Upload APK and Screenshot
         uses: actions/upload-artifact@v4
