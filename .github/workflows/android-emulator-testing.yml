@@ -197,6 +197,7 @@ jobs:
       - name: Create AVD snapshot for future caching
         if: steps.cache-avd.outputs.cache-hit != 'true'
         timeout-minutes: 5
+        continue-on-error: true  # 🔥 关键修复：快照失败不影响整体流程
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
@@ -210,10 +211,11 @@ jobs:
           disable-spellchecker: true
           disable-linux-hw-accel: false
           script: |
-            echo "📷 创建AVD快照用于未来缓存..."
+            echo "📷 尝试创建AVD快照用于未来缓存..."
             echo "🎯 目的: 为后续workflow运行建立快速启动快照"
-            echo "⚡ 效果: 下次运行时模拟器启动将从3-4分钟减少到30-60秒"
-            echo "✅ AVD快照创建完成，将自动保存到缓存"
+            echo "⚡ 预期效果: 成功时下次启动从3-4分钟减少到30-60秒"
+            echo "🛡️ 容错机制: 快照创建失败不影响整体测试流程"
+            echo "✅ AVD快照尝试完成，成功时将保存到缓存"
 
       # ============================================
       # 阶段4: APK 构建
@@ -266,8 +268,45 @@ jobs:
       # 阶段5: 模拟器测试 (使用预准备的快照)
       # ============================================
 
+      - name: Pre-Test Environment Check
+        run: |
+          echo "🔍 测试前环境检查..."
+          
+          echo "📊 系统资源:"
+          echo "  内存: $(free -h | grep '^Mem:' | awk '{print $2" 总量, "$4" 可用"}')"
+          echo "  CPU: $(nproc) 核心"
+          echo "  磁盘: $(df -h . | tail -1 | awk '{print $4" 可用"}')"
+          
+          echo "📱 AVD状态:"
+          AVD_NAME="test-api${{ env.API_LEVEL }}"
+          if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
+            echo "  ✅ AVD配置存在"
+            if [ -d "$HOME/.android/avd/${AVD_NAME}.avd/snapshots" ]; then
+              SNAPSHOT_COUNT=$(find "$HOME/.android/avd/${AVD_NAME}.avd/snapshots" -name "*.snapshot" 2>/dev/null | wc -l)
+              echo "  📷 快照文件: $SNAPSHOT_COUNT 个"
+            else
+              echo "  📷 快照文件: 无 (首次启动会较慢)"
+            fi
+          else
+            echo "  ❌ AVD配置缺失"
+            exit 1
+          fi
+          
+          echo "📦 APK状态:"
+          APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
+          if [ -f "$APK_PATH" ]; then
+            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+            echo "  ✅ APK准备就绪: $APK_SIZE"
+          else
+            echo "  ❌ APK文件缺失: $APK_PATH"
+            exit 1
+          fi
+          
+          echo "🚀 预检查完成，开始模拟器测试..."
+
       - name: Run Integrated Tests
         timeout-minutes: 15
+        continue-on-error: false  # 主测试步骤必须成功
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
