@@ -77,11 +77,11 @@ jobs:
             # 安装应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
 
+            # 设置应用语言为中文
+            adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
+
             # 启动应用
-            # adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1
             adb shell am start -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
-            # adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER org.fossify.calendar.debug
-            # adb shell cmd package resolve-activity --brief org.fossify.calendar.debug | head -1
             sleep 3
             
             # 截图
