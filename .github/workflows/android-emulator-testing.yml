@@ -114,17 +114,12 @@ jobs:
           echo "## 📸 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ -f "calendar_screenshot.png" ]; then
-            BYTES=$(stat -c%s calendar_screenshot.png || echo 0)
-            if [ "$BYTES" -gt 800000 ]; then
-              echo "⚠️ 截图过大（$BYTES bytes），为避免 Summary 被截断不内嵌，建议下载附件查看。" >> $GITHUB_STEP_SUMMARY
-            else
-              # Markdown data URI（可能被 GitHub 清理）
-              echo "![日历应用截图](data:image/png;base64,$(base64 -w 0 calendar_screenshot.png))" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              # HTML 兜底（某些情况下 Markdown data URI 会被移除）
-              echo "<img alt=\"日历应用截图\" src=\"data:image/png;base64,$(base64 -w 0 calendar_screenshot.png)\" />" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-            fi
+            # Markdown data URI
+            echo "![日历应用截图](data:image/png;base64,$(base64 -w 0 calendar_screenshot.png))" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            # HTML 兜底
+            echo "<img alt=\"日历应用截图\" src=\"data:image/png;base64,$(base64 -w 0 calendar_screenshot.png)\" />" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ 截图生成失败" >> $GITHUB_STEP_SUMMARY
           fi
