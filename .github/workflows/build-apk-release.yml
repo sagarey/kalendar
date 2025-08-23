@@ -22,14 +22,14 @@ concurrency:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest
-    timeout-minutes: 50  # 合理的超时时间，有问题快速失败
+    runs-on: ubuntu-latest-4-cores
+    timeout-minutes: 40  # 4核心优化后，缩短超时时间
     permissions:
       contents: write
       actions: read
     env:
-      # 优化 Gradle 性能 - 公开项目高性能配置
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dorg.gradle.jvmargs="-Xmx5g -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseFastUnorderedTimeStamps"
+      # 优化 Gradle 性能 - 4核心高性能配置
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=6 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx6g -XX:+UseG1GC -XX:MaxGCPauseMillis=30 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseFastUnorderedTimeStamps -XX:G1HeapRegionSize=16m"
       # Android 相关环境变量 - 最新配置
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
@@ -70,7 +70,7 @@ jobs:
         timeout-minutes: 10  # 依赖下载超时控制
         run: |
           echo "📥 下载依赖..."
-          ./gradlew dependencies --no-daemon --stacktrace
+          ./gradlew dependencies --no-daemon --stacktrace --parallel --max-workers=6
           echo "✅ 依赖下载完成"
 
       - name: Cache Android SDK
@@ -111,7 +111,7 @@ jobs:
           fi
 
       - name: Build APK (Debug)
-        timeout-minutes: 20  # 构建超时控制
+        timeout-minutes: 15  # 4核心构建应该更快
         run: |
           echo "🔨 构建 APK..."
           echo "💾 可用内存: $(free -h | grep '^Mem:' | awk '{print $7}')"
@@ -119,7 +119,7 @@ jobs:
           BUILD_START_TIME=$(date +%s)
           
           # 启用更详细的构建信息
-          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache --info; then
+          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache --parallel --max-workers=6 --info; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ 构建成功 (${BUILD_DURATION}s)"

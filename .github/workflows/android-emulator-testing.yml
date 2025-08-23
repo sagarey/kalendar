@@ -18,11 +18,11 @@ concurrency:
 
 jobs:
   emulator-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45  # 合理的超时时间，有问题快速失败
+    runs-on: ubuntu-latest-4-cores
+    timeout-minutes: 35  # 4核心优化后，缩短超时时间
     env:
-      # 优化 Gradle 性能 - 公开项目高性能配置
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dorg.gradle.jvmargs="-Xmx5g -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseFastUnorderedTimeStamps"
+      # 优化 Gradle 性能 - 4核心高性能配置
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=6 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx6g -XX:+UseG1GC -XX:MaxGCPauseMillis=30 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseFastUnorderedTimeStamps -XX:G1HeapRegionSize=16m"
       # Android 相关环境变量 - 最新配置
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
@@ -63,7 +63,7 @@ jobs:
         timeout-minutes: 10  # 依赖下载超时控制
         run: |
           echo "📥 下载依赖..."
-          ./gradlew dependencies --no-daemon --stacktrace
+          ./gradlew dependencies --no-daemon --stacktrace --parallel --max-workers=6
           echo "✅ 依赖下载完成"
 
       - name: Cache Android SDK
@@ -126,7 +126,7 @@ jobs:
           profile: pixel_6  # 使用更现代的设备配置
           avd-name: test-device-api${{ env.API_LEVEL }}-x86_64
           force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 3072 -smp 2 -accel kvm -netdelay none -netspeed full -partition-size 6144 -wipe-data
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 4096 -smp 3 -accel kvm -netdelay none -netspeed full -partition-size 8192 -wipe-data
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
@@ -186,12 +186,12 @@ jobs:
             ${{ runner.os }}-build-
 
       - name: Build and Install APK
-        timeout-minutes: 15  # 构建超时控制
+        timeout-minutes: 12  # 4核心构建应该更快
         run: |
           echo "🔨 构建 APK..."
           BUILD_START_TIME=$(date +%s)
           
-          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache; then
+          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache --parallel --max-workers=6; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ 构建成功 (${BUILD_DURATION}s)"
