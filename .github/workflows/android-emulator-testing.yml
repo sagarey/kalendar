@@ -78,10 +78,10 @@ jobs:
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
             # 强制设置中文环境
-            adb shell settings put system system_locales zh-CN
-            adb reboot
-            sleep 10
-            adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            # adb shell settings put system system_locales zh-CN
+            # adb reboot
+            # sleep 10
+            # adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
             # 安装应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
