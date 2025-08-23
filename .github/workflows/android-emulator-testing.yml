@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # 优化 Gradle 性能 - ubuntu-latest 4核心配置
+      # 优化 Gradle 性能 - ubuntu-latest 4核心/16GB 内存配置
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
       # Android 相关环境变量 - 最新配置
       ANDROID_COMPILE_SDK: 34
@@ -87,6 +87,18 @@ jobs:
           echo "y" | sdkmanager "$SYSTEM_IMAGE"
           echo "no" | avdmanager create avd --force --name "$AVD_NAME" \
             --abi "default/x86_64" --package "$SYSTEM_IMAGE" --device "Nexus 6"
+          
+          # 查找 config.ini 文件位置
+          echo "🔍 查找 config.ini 文件位置..."
+          echo "预期位置: $HOME/.android/avd/${AVD_NAME}.avd/config.ini"
+          echo "AVD 目录结构:"
+          ls -la "$HOME/.android/avd/" 2>/dev/null || echo "AVD 目录不存在"
+          if [ -d "$HOME/.android/avd/${AVD_NAME}.avd" ]; then
+            echo "AVD 配置目录内容:"
+            ls -la "$HOME/.android/avd/${AVD_NAME}.avd/"
+          fi
+          echo "全局查找 config.ini 文件:"
+          find "$HOME/.android" -name "config.ini" 2>/dev/null || echo "未找到 config.ini 文件"
           
           # 优化配置
           AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
