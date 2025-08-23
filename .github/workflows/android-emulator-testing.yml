@@ -232,57 +232,120 @@ jobs:
           echo "  ~/.gradle: $(du -sh ~/.gradle 2>/dev/null | cut -f1 || echo '未找到')"
           echo "  ~/.android: $(du -sh ~/.android 2>/dev/null | cut -f1 || echo '未找到')"
 
-      - name: Pre-build Check
+      - name: Comprehensive Build Diagnostics
         run: |
-          echo "🔧 预构建检查..."
-          echo "📂 项目结构:"
-          ls -la app/src/
+          echo "🔧 全面构建诊断..."
+          echo "📊 系统环境:"
+          echo "  操作系统: $(uname -a)"
+          echo "  Java版本: $(java -version 2>&1 | head -3)"
+          echo "  内存状态: $(free -h)"
+          echo "  磁盘空间: $(df -h . | tail -1)"
           echo ""
+          
+          echo "📂 项目结构检查:"
+          echo "  根目录: $(ls -la | head -10)"
+          echo "  app目录: $(ls -la app/ | head -5)"
+          echo "  源码目录: $(find app/src -name "*.kt" | wc -l) 个Kotlin文件"
+          echo ""
+          
+          echo "🔍 Gradle配置:"
+          echo "  Gradle版本:"
+          ./gradlew --version | head -5
+          echo ""
+          echo "  项目属性:"
+          ./gradlew properties | grep -E "(version|sdk|id)" | head -10
+          echo ""
+          
           echo "📋 可用构建任务:"
-          ./gradlew tasks --group="build" | grep -E "(assembleFoss|build)" || echo "无法获取构建任务"
-          echo ""
-          echo "🔍 构建变体检查:"
-          ls -la app/build.gradle* 2>/dev/null || echo "构建文件检查"
+          ./gradlew tasks --group="build" | grep -E "(assemble|build)" | head -10
 
-      - name: Build and Install APK
-        timeout-minutes: 12  # 构建超时控制
+      - name: Clean Build Environment
         run: |
-          echo "🔨 构建 APK..."
-          echo "📊 构建环境检查:"
-          echo "  Java: $(java -version 2>&1 | head -1)"
-          echo "  Gradle: $(./gradlew --version | head -3 | tail -1)"
-          echo "  内存: $(free -h | grep '^Mem:' | awk '{print $2}')"
-          echo "  磁盘: $(df -h . | tail -1 | awk '{print $4}') 可用"
+          echo "🧹 清理构建环境..."
+          ./gradlew clean --stacktrace
+          echo "✅ 清理完成"
+
+      - name: Step-by-Step Build
+        timeout-minutes: 15
+        run: |
+          echo "🔨 分步构建 APK..."
           
           BUILD_START_TIME=$(date +%s)
           
-          echo "🚀 开始构建..."
-          if ./gradlew assembleFossDebug --stacktrace --info --build-cache; then
+          # 步骤1: 验证项目配置
+          echo "📋 步骤1: 验证项目配置"
+          if ./gradlew help --stacktrace; then
+            echo "✅ 项目配置验证成功"
+          else
+            echo "❌ 项目配置验证失败"
+            exit 1
+          fi
+          
+          # 步骤2: 下载和验证依赖
+          echo "📋 步骤2: 验证依赖"
+          if ./gradlew dependencies --configuration debugCompileClasspath --stacktrace | head -20; then
+            echo "✅ 依赖验证成功"
+          else
+            echo "❌ 依赖验证失败"
+            exit 1
+          fi
+          
+          # 步骤3: 尝试构建
+          echo "📋 步骤3: 构建APK"
+          if ./gradlew assembleFossDebug --stacktrace --no-daemon --info; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ 构建成功 (${BUILD_DURATION}s)"
           else
             echo "❌ 构建失败"
-            echo "📋 构建诊断信息:"
-            echo "  Gradle守护进程: $(./gradlew --status 2>/dev/null || echo '无法获取')"
-            echo "  构建缓存: $(ls -la ~/.gradle/caches/ 2>/dev/null | wc -l) 个缓存文件"
+            echo ""
+            echo "📋 详细诊断信息:"
+            echo "  Gradle守护进程状态:"
+            ./gradlew --status || echo "无法获取守护进程状态"
+            echo ""
+            echo "  最近的构建日志:"
+            find . -name "*.log" -newer ~/.gradle 2>/dev/null | head -5 | xargs ls -la || echo "未找到构建日志"
+            echo ""
+            echo "  构建目录状态:"
+            ls -la app/build/ 2>/dev/null | head -10 || echo "无构建目录"
             exit 1
           fi
           
-          # 安装 APK
+      - name: Verify and Install APK
+        timeout-minutes: 5
+        run: |
+          echo "📱 验证和安装 APK..."
+          
+          # 检查APK文件
           APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
           if [ -f "$APK_PATH" ]; then
             APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-            echo "📱 安装 APK ($APK_SIZE)..."
+            echo "✅ 找到APK文件: $APK_PATH ($APK_SIZE)"
             
+            # 验证APK有效性
+            if aapt dump badging "$APK_PATH" | head -5; then
+              echo "✅ APK文件有效"
+            else
+              echo "⚠️ APK验证警告，但继续安装"
+            fi
+            
+            # 安装APK
+            echo "📲 安装APK到模拟器..."
             if adb install -r -t "$APK_PATH" 2>/dev/null || adb install -r -t "$APK_PATH"; then
               echo "✅ APK 安装成功"
             else
               echo "❌ APK 安装失败"
+              echo "📋 设备状态检查:"
+              adb devices
+              echo "📋 设备存储空间:"
+              adb shell df /data | tail -1 || echo "无法获取存储信息"
               exit 1
             fi
           else
-            echo "❌ APK 文件不存在"
+            echo "❌ APK 文件不存在: $APK_PATH"
+            echo "📂 构建输出目录内容:"
+            find app/build -name "*.apk" 2>/dev/null || echo "未找到任何APK文件"
+            ls -la app/build/outputs/apk/ 2>/dev/null || echo "输出目录不存在"
             exit 1
           fi
 
