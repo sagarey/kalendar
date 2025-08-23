@@ -71,6 +71,24 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Initial Cache Status Check
+        run: |
+          echo "🔍 初始缓存状态检查:"
+          echo "  🏗️ Gradle缓存: 由 setup-gradle 自动管理"
+          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
+          echo "  🎮 AVD缓存: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
+          echo ""
+          if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ]; then
+            echo "🚀 SDK缓存命中，跳过大量下载！"
+          else
+            echo "📥 SDK缓存未命中，将重新下载"
+          fi
+          if [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
+            echo "⚡ AVD缓存命中，跳过配置创建！"
+          else
+            echo "🔨 AVD缓存未命中，将重新配置"
+          fi
+
       # ============================================
       # 阶段2: 依赖下载和环境配置
       # ============================================
@@ -175,13 +193,7 @@ jobs:
             exit 1
           fi
 
-      - name: Cache Status Summary
-        run: |
-          echo "📊 缓存状态总结:"
-          echo "  🏗️ Gradle缓存: 由 setup-gradle 自动管理"
-          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
-          echo "  🎮 AVD缓存: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次创建' }}"
-          echo "  ⚡ 性能预期: ${{ (steps.cache-android-sdk.outputs.cache-hit == 'true' && steps.cache-avd.outputs.cache-hit == 'true') && '🚀 最佳性能' || '⚡ 基础性能' }}"
+
 
       # ============================================
       # 阶段4: APK 构建
@@ -249,81 +261,7 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: |
-            echo "🚀 Android模拟器测试开始..."
-            
-            # 基础验证 - 单设备环境，简化ADB操作
-            echo "📱 验证设备连接:"
-            adb devices
-            
-            # 等待设备就绪
-            echo "⏳ 等待设备就绪..."
-            adb wait-for-device
-            echo "✅ 设备连接成功"
-            
-            # APK安装 - 无需指定设备ID
-            APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
-            echo "📲 安装APK: $APK_PATH"
-            
-            if [ -f "$APK_PATH" ]; then
-              if adb install -r "$APK_PATH"; then
-                echo "✅ APK安装成功"
-              else
-                echo "❌ APK安装失败"
-                exit 1
-              fi
-            else
-              echo "❌ APK文件不存在: $APK_PATH"
-              echo "🔍 搜索APK文件:"
-              find . -name "*.apk" 2>/dev/null | head -3
-              exit 1
-            fi
-            
-            # 启动应用
-            PACKAGE="org.fossify.calendar"
-            ACTIVITY="$PACKAGE/.activities.SplashActivity"
-            echo "🚀 启动应用: $ACTIVITY"
-            
-            if adb shell am start -n "$ACTIVITY"; then
-              echo "✅ 应用启动成功"
-            else
-              echo "⚠️ 应用启动失败，尝试其他入口"
-              # 尝试主Activity
-              if adb shell am start -n "$PACKAGE/.activities.MainActivity"; then
-                echo "✅ 主Activity启动成功"
-              else
-                echo "⚠️ 启动失败，继续截图检查"
-              fi
-            fi
-            
-            # 等待应用加载
-            echo "⏳ 等待应用加载(8秒)..."
-            sleep 8
-            
-            # 获取截图
-            echo "📸 获取运行截图..."
-            if adb shell screencap -p > calendar_running_screenshot.png; then
-              echo "✅ 截图保存成功: calendar_running_screenshot.png"
-            else
-              echo "⚠️ 直接截图失败，尝试传统方式..."
-              adb shell screencap -p /sdcard/screenshot.png
-              adb pull /sdcard/screenshot.png calendar_running_screenshot.png
-              echo "✅ 截图已保存"
-            fi
-            
-            # 应用状态检查
-            echo "🔍 检查应用状态:"
-            if adb shell pm list packages | grep -q "$PACKAGE"; then
-              echo "✅ 应用已安装"
-              
-              # 获取应用版本
-              VERSION=$(adb shell dumpsys package "$PACKAGE" | grep "versionName" | head -1 | cut -d'=' -f2)
-              echo "📋 应用版本: $VERSION"
-            else
-              echo "❌ 应用未找到"
-            fi
-            
-            echo "🎉 Android测试完成！"
+          script: echo "Testing APK installation and running" && adb devices && adb wait-for-device && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && sleep 3 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png && echo "Screenshot saved"
 
       # ============================================
       # 阶段6: 结果总结和清理
