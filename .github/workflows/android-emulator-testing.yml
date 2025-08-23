@@ -316,18 +316,82 @@ jobs:
           disable-spellchecker: true
           disable-linux-hw-accel: false
           script: |
+            set -e  # 启用错误退出模式
             echo "🚀 Android模拟器测试开始"
+            
+            # 检查APK文件
+            APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
+            echo "🔍 检查APK文件: $APK_PATH"
+            if [ ! -f "$APK_PATH" ]; then
+              echo "❌ APK文件不存在"
+              echo "📁 搜索可用的APK文件:"
+              find . -name "*.apk" -type f 2>/dev/null | head -5
+              echo "📁 检查构建输出目录:"
+              ls -la app/build/outputs/apk/foss/debug/ 2>/dev/null || echo "构建输出目录不存在"
+              exit 1
+            fi
+            
+            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+            echo "✅ APK文件检查通过: $APK_SIZE"
+            
+            # 检查设备连接
             echo "📱 检查设备连接"
             adb devices
             adb wait-for-device
-            echo "📲 安装APK"
-            adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
-            echo "⏳ 等待应用加载"
+            
+            # 验证设备可用性
+            echo "🔍 验证设备状态"
+            DEVICE_COUNT=$(adb devices | grep -c "device$" || echo "0")
+            if [ "$DEVICE_COUNT" -eq 0 ]; then
+              echo "❌ 没有可用的设备"
+              echo "📱 设备列表:"
+              adb devices
+              exit 1
+            fi
+            echo "✅ 找到 $DEVICE_COUNT 个可用设备"
+            
+            # 安装APK
+            echo "📲 安装APK: $APK_PATH"
+            if adb install -r "$APK_PATH"; then
+              echo "✅ APK安装成功"
+            else
+              echo "❌ APK安装失败，尝试其他方法"
+              echo "🔄 卸载旧版本后重新安装"
+              adb uninstall org.fossify.calendar 2>/dev/null || echo "没有旧版本需要卸载"
+              if adb install "$APK_PATH"; then
+                echo "✅ 重新安装成功"
+              else
+                echo "❌ 安装彻底失败"
+                exit 1
+              fi
+            fi
+            
+            # 验证安装
+            echo "🔍 验证应用安装"
+            if adb shell pm list packages | grep -q "org.fossify.calendar"; then
+              echo "✅ 应用安装验证成功"
+            else
+              echo "❌ 应用安装验证失败"
+              exit 1
+            fi
+            
+            # 等待和截图
+            echo "⏳ 等待系统稳定"
             sleep 5
-            echo "📸 获取截图"
-            adb shell screencap -p /sdcard/screenshot.png
-            adb pull /sdcard/screenshot.png calendar_running_screenshot.png
-            echo "✅ 测试完成，截图已保存"
+            
+            echo "📸 获取系统截图"
+            if adb shell screencap -p /sdcard/screenshot.png; then
+              echo "✅ 截图创建成功"
+              if adb pull /sdcard/screenshot.png calendar_running_screenshot.png; then
+                echo "✅ 截图下载成功"
+              else
+                echo "⚠️ 截图下载失败"
+              fi
+            else
+              echo "⚠️ 截图创建失败"
+            fi
+            
+            echo "✅ 测试流程完成"
 
       # ============================================
       # 阶段6: 结果总结和清理
