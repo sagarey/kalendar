@@ -41,6 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
           fetch-depth: 1
 
       # ============================================
@@ -81,13 +82,8 @@ jobs:
 
       - name: Setup Android Environment
         run: |
-          echo "🔧 配置Android环境变量..."
-          
-          # 设置Android环境变量 (总是执行)
-          echo "📱 设置Android环境变量..."
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
-          echo "✅ 环境变量设置完成"
 
       - name: Install Android SDK Components
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
@@ -102,43 +98,11 @@ jobs:
 
       - name: Setup AVD
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 6
+        timeout-minutes: 5
         run: |
-          echo "🔨 Android缓存未命中，开始创建AVD..."
-          
-          # 验证系统镜像已安装
           SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
-          echo "📦 验证系统镜像: $SYSTEM_IMAGE"
-          if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
-            echo "❌ 系统镜像未找到，这不应该发生！"
-            echo "📋 已安装的系统镜像："
-            sdkmanager --list_installed | grep "system-images" || echo "未找到任何系统镜像"
-            exit 1
-          fi
-          echo "✅ 系统镜像验证通过"
-          
-          # 创建AVD
           AVD_NAME="test-api${{ env.API_LEVEL }}"
-          echo "📱 创建AVD: $AVD_NAME"
-          echo "no" | avdmanager create avd \
-            --force \
-            --name "$AVD_NAME" \
-            --abi "${{ env.TARGET }}/${{ env.ARCH }}" \
-            --package "$SYSTEM_IMAGE" \
-            --device "${{ env.PROFILE }}"
-          
-          # 优化AVD配置
-          AVD_CONFIG="${{ env.ANDROID_AVD_HOME }}/${AVD_NAME}.avd/config.ini"
-          if [ -f "$AVD_CONFIG" ]; then
-            echo "⚙️ 应用性能优化配置..."
-            echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
-            echo "hw.ramSize=2048" >> "$AVD_CONFIG"
-            echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-            echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-            echo "✅ AVD性能优化完成"
-          fi
-          
-          echo "✅ AVD创建完成: $AVD_NAME"
+          echo "no" | avdmanager create avd --force --name "$AVD_NAME" --abi "${{ env.TARGET }}/${{ env.ARCH }}" --package "$SYSTEM_IMAGE" --device "${{ env.PROFILE }}"
 
       - name: Save Android Cache
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
@@ -155,39 +119,7 @@ jobs:
 
       - name: Build APK
         timeout-minutes: 10
-        run: |
-          echo "🔨 构建 APK (包含依赖下载)..."
-          
-          BUILD_START_TIME=$(date +%s)
-          
-          # 下载依赖并构建
-          echo "📥 下载依赖并清理构建环境..."
-          ./gradlew dependencies clean --stacktrace --no-daemon
-          
-          # 清理可能残留的APK文件
-          rm -f app/build/outputs/apk/foss/debug/*.apk 2>/dev/null || true
-          
-          # 执行构建
-          echo "🔨 开始APK构建..."
-          if ./gradlew assembleFossDebug --stacktrace; then
-            BUILD_END_TIME=$(date +%s)
-            BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
-            echo "✅ APK构建成功 (${BUILD_DURATION}秒)"
-            
-            # 验证APK文件
-            APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
-            if [ -f "$APK_PATH" ]; then
-              APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-              echo "✅ APK构建成功: $APK_PATH ($APK_SIZE)"
-            else
-              echo "❌ APK文件未找到: $APK_PATH"
-              find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -3 || echo "未找到任何APK文件"
-              exit 1
-            fi
-          else
-            echo "❌ APK构建失败"
-            exit 1
-          fi
+        run: ./gradlew clean assembleFossDebug --stacktrace --no-daemon
 
       # ============================================
       # 阶段6: 模拟器测试 + 截图
