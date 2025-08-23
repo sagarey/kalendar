@@ -80,10 +80,20 @@ jobs:
           key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ env.PROFILE }}-v12
 
       # ============================================
-      # 阶段4: Android SDK 设置 (基于缓存优化)
+      # 阶段4: Android SDK 和 AVD 统一设置
       # ============================================
 
-      - name: Setup SDK
+      - name: Setup Android Environment
+        run: |
+          echo "🔧 配置Android环境变量..."
+          
+          # 设置Android环境变量 (总是执行)
+          echo "📱 设置Android环境变量..."
+          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          echo "✅ 环境变量设置完成"
+
+      - name: Install Android SDK Components
         if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
         with:
@@ -94,44 +104,16 @@ jobs:
             system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}
             emulator
 
-      - name: Save SDK Cache
-        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.ANDROID_HOME }}
-          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v12
-
-      # ============================================
-      # 阶段5: Android环境配置与AVD设置
-      # ============================================
-
       - name: Setup AVD
         timeout-minutes: 6
         run: |
-          echo "🔧 配置Android环境与AVD..."
           
-          # 设置Android环境变量 (总是执行)
-          echo "📱 设置Android环境变量..."
-          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-          echo "✅ 环境变量设置完成"
-          
-          # 检查AVD缓存状态并按需创建
+          # 创建AVD (仅在AVD缓存未命中时)
           if [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" != "true" ]; then
             echo "🔨 AVD缓存未命中，开始创建AVD..."
             
-            # 检查并安装必要的system-images
-            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
-            echo "📦 检查系统镜像: $SYSTEM_IMAGE"
-            
-            if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
-              echo "📥 下载系统镜像..."
-              echo "y" | sdkmanager "$SYSTEM_IMAGE"
-            else
-              echo "✅ 系统镜像已存在"
-            fi
-            
             # 创建AVD
+            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
             AVD_NAME="test-api${{ env.API_LEVEL }}"
             echo "📱 创建AVD: $AVD_NAME"
             echo "no" | avdmanager create avd \
@@ -155,9 +137,15 @@ jobs:
             echo "✅ AVD创建完成: $AVD_NAME"
           else
             echo "⚡ AVD缓存命中，跳过AVD创建"
-            AVD_NAME="test-api${{ env.API_LEVEL }}"
-            echo "✅ 使用缓存的AVD: $AVD_NAME"
+            echo "✅ 使用缓存的AVD: test-api${{ env.API_LEVEL }}"
           fi
+
+      - name: Save SDK Cache
+        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}
+          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v12
 
       - name: Save AVD Cache
         if: steps.restore-avd-cache.outputs.cache-hit != 'true'
@@ -167,7 +155,7 @@ jobs:
           key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ env.PROFILE }}-v12
 
       # ============================================
-      # 阶段6: APK 构建 (包含依赖下载)
+      # 阶段5: APK 构建 (包含依赖下载)
       # ============================================
 
       - name: Build APK
@@ -207,7 +195,7 @@ jobs:
           fi
 
       # ============================================
-      # 阶段7: 模拟器测试 + 截图
+      # 阶段6: 模拟器测试 + 截图
       # ============================================
 
       - name: Android Emulator Testing with Screenshots
