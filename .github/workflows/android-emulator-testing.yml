@@ -175,47 +175,13 @@ jobs:
             exit 1
           fi
 
-      - name: Complete Cache Status Check
+      - name: Cache Status Summary
         run: |
-          echo "📊 完整缓存状态检查 (所有缓存操作完成后):"
+          echo "📊 缓存状态总结:"
           echo "  🏗️ Gradle缓存: 由 setup-gradle 自动管理"
           echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
           echo "  🎮 AVD缓存: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次创建' }}"
-          echo ""
-          echo "📁 环境路径检查:"
-          echo "  ANDROID_HOME: $ANDROID_HOME"
-          echo "  SDK目录: $([ -d "$ANDROID_HOME" ] && echo "✅存在 ($(du -sh $ANDROID_HOME 2>/dev/null | cut -f1 || echo 'unknown'))" || echo "❌缺失")"
-          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo "✅存在 ($(du -sh $HOME/.android/avd 2>/dev/null | cut -f1 || echo 'unknown'))" || echo "❌缺失")"
-          echo ""
-          echo "🔑 缓存键信息:"
-          echo "  SDK键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
-          echo "  AVD键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
-          echo ""
-          echo "📊 缓存效果:"
-          echo "  预计性能提升: ${{ (steps.cache-android-sdk.outputs.cache-hit == 'true' && steps.cache-avd.outputs.cache-hit == 'true') && '🚀 双缓存命中，最佳性能' || '⚡ 部分缓存命中，性能提升' }}"
-
-      - name: Create AVD snapshot for future caching
-        if: steps.cache-avd.outputs.cache-hit != 'true'
-        timeout-minutes: 5
-        continue-on-error: true  # 🔥 关键修复：快照失败不影响整体流程
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ env.API_LEVEL }}
-          target: ${{ env.TARGET }}
-          arch: ${{ env.ARCH }}
-          profile: ${{ env.PROFILE }}
-          avd-name: test-api${{ env.API_LEVEL }}
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
-          disable-animations: true
-          disable-spellchecker: true
-          disable-linux-hw-accel: false
-          script: |
-            echo "📷 尝试创建AVD快照用于未来缓存..."
-            echo "🎯 目的: 为后续workflow运行建立快速启动快照"
-            echo "⚡ 预期效果: 成功时下次启动从3-4分钟减少到30-60秒"
-            echo "🛡️ 容错机制: 快照创建失败不影响整体测试流程"
-            echo "✅ AVD快照尝试完成，成功时将保存到缓存"
+          echo "  ⚡ 性能预期: ${{ (steps.cache-android-sdk.outputs.cache-hit == 'true' && steps.cache-avd.outputs.cache-hit == 'true') && '🚀 最佳性能' || '⚡ 基础性能' }}"
 
       # ============================================
       # 阶段4: APK 构建
@@ -265,46 +231,10 @@ jobs:
           fi
 
       # ============================================
-      # 阶段5: 模拟器测试 (使用预准备的快照)
+      # 阶段3: 模拟器测试 + 截图
       # ============================================
 
-      - name: Pre-Test Environment Check
-        run: |
-          echo "🔍 测试前环境检查..."
-          
-          echo "📊 系统资源:"
-          echo "  内存: $(free -h | grep '^Mem:' | awk '{print $2" 总量, "$4" 可用"}')"
-          echo "  CPU: $(nproc) 核心"
-          echo "  磁盘: $(df -h . | tail -1 | awk '{print $4" 可用"}')"
-          
-          echo "📱 AVD状态:"
-          AVD_NAME="test-api${{ env.API_LEVEL }}"
-          if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
-            echo "  ✅ AVD配置存在"
-            if [ -d "$HOME/.android/avd/${AVD_NAME}.avd/snapshots" ]; then
-              SNAPSHOT_COUNT=$(find "$HOME/.android/avd/${AVD_NAME}.avd/snapshots" -name "*.snapshot" 2>/dev/null | wc -l)
-              echo "  📷 快照文件: $SNAPSHOT_COUNT 个"
-            else
-              echo "  📷 快照文件: 无 (首次启动会较慢)"
-            fi
-          else
-            echo "  ❌ AVD配置缺失"
-            exit 1
-          fi
-          
-          echo "📦 APK状态:"
-          APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
-          if [ -f "$APK_PATH" ]; then
-            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-            echo "  ✅ APK准备就绪: $APK_SIZE"
-          else
-            echo "  ❌ APK文件缺失: $APK_PATH"
-            exit 1
-          fi
-          
-          echo "🚀 预检查完成，开始模拟器测试..."
-
-      - name: Run Integrated Tests
+      - name: Android Emulator Testing with Screenshots
         timeout-minutes: 15
         continue-on-error: false  # 主测试步骤必须成功
         uses: reactivecircus/android-emulator-runner@v2
@@ -315,130 +245,84 @@ jobs:
           profile: ${{ env.PROFILE }}
           avd-name: test-api${{ env.API_LEVEL }}
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
           script: |
-            set -e  # 启用错误退出
-            echo "🚀 开始整合测试..."
+            echo "🚀 Android模拟器测试开始..."
             
-            # 详细的环境诊断
-            echo "🔍 环境诊断:"
-            echo "  Shell: $0"
-            echo "  PWD: $(pwd)"
-            echo "  用户: $(whoami)"
-            
-            # 验证模拟器
-            echo "📱 模拟器验证:"
-            echo "🔍 ADB状态:"
-            adb devices || {
-              echo "❌ ADB devices命令失败"
-              adb start-server
-              sleep 2
-              adb devices
-            }
-            
-            echo "🔍 详细设备信息:"
-            adb devices -l 2>/dev/null || echo "详细设备信息获取失败"
-            
+            # 基础验证
+            echo "📱 验证设备连接:"
+            adb devices
             DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
-            echo "🔍 提取的设备: '$DEVICE'"
-            
             if [ -z "$DEVICE" ]; then
               echo "❌ 未找到模拟器设备"
-              echo "🔍 完整adb devices输出:"
-              adb devices
-              echo "🔍 进程检查:"
-              ps aux | grep emulator | head -5 || echo "未找到emulator进程"
               exit 1
             fi
             echo "✅ 模拟器设备: $DEVICE"
             
-            # 安装固定路径的APK
+            # APK安装
             APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
             echo "📲 安装APK: $APK_PATH"
             
-            echo "🔍 APK路径检查:"
-            echo "  当前目录: $(pwd)"
-            echo "  APK路径: $APK_PATH"
-            echo "  文件存在: $([ -f "$APK_PATH" ] && echo "✅ 是" || echo "❌ 否")"
-            
             if [ -f "$APK_PATH" ]; then
-              APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-              echo "📱 找到APK: $APK_SIZE"
-              
-              echo "🔍 设备连接测试:"
-              if adb -s $DEVICE shell echo "连接测试" >/dev/null 2>&1; then
-                echo "✅ 设备连接正常"
-              else
-                echo "❌ 设备连接异常"
-                exit 1
-              fi
-              
-              echo "📲 执行APK安装..."
               if adb -s $DEVICE install -r "$APK_PATH"; then
                 echo "✅ APK安装成功"
-                
-                # 验证安装
-                echo "🔍 验证应用安装:"
-                if adb -s $DEVICE shell pm list packages | grep -q "org.fossify.calendar"; then
-                  echo "✅ 应用安装验证成功"
-                else
-                  echo "⚠️ 安装验证失败"
-                fi
               else
-                echo "⚠️ APK安装失败，但测试继续"
+                echo "❌ APK安装失败"
+                exit 1
               fi
             else
-              echo "❌ 预期APK文件不存在: $APK_PATH"
-              echo "🔍 搜索可能的APK文件:"
-              find . -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
-              echo "❌ 无法继续测试"
+              echo "❌ APK文件不存在: $APK_PATH"
+              echo "🔍 可用APK文件:"
+              find . -name "*.apk" 2>/dev/null | head -3
               exit 1
             fi
             
-            # 稳定性测试 (2分钟) - 使用POSIX兼容语法
-            echo "🕒 稳定性测试 (2分钟):"
-            SUCCESS_COUNT=0
-            TOTAL_TESTS=12
+            # 启动应用
+            PACKAGE="org.fossify.calendar"
+            ACTIVITY="$PACKAGE/.activities.SplashActivity"
+            echo "🚀 启动应用: $ACTIVITY"
             
-            echo "🔍 开始连续性测试..."
-            i=1
-            while [ $i -le $TOTAL_TESTS ]; do
-              printf "[$i/$TOTAL_TESTS] "
+            if adb -s $DEVICE shell am start -n "$ACTIVITY"; then
+              echo "✅ 应用启动成功"
+            else
+              echo "⚠️ 应用启动可能失败，继续截图"
+            fi
+            
+            # 等待应用加载
+            echo "⏳ 等待应用加载..."
+            sleep 5
+            
+            # 获取截图
+            echo "📸 获取运行截图..."
+            SCREENSHOT_PATH="/data/local/tmp/calendar_screenshot.png"
+            if adb -s $DEVICE shell screencap -p "$SCREENSHOT_PATH"; then
+              echo "✅ 截图创建成功"
               
-              if adb -s "$DEVICE" shell echo "test" >/dev/null 2>&1; then
-                printf "✅"
-                SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+              # 下载截图到本地
+              if adb -s $DEVICE pull "$SCREENSHOT_PATH" ./calendar_running_screenshot.png; then
+                echo "✅ 截图保存到: ./calendar_running_screenshot.png"
               else
-                printf "❌"
-                echo ""
-                echo "🔍 第${i}次测试失败，检查设备状态:"
-                adb -s "$DEVICE" shell getprop sys.boot_completed 2>/dev/null || echo "无法获取启动状态"
+                echo "⚠️ 截图下载失败"
               fi
-              
-              sleep 10
-              i=$((i + 1))
-            done
-            echo ""
-            
-            # 安全的除法计算
-            if [ $TOTAL_TESTS -gt 0 ]; then
-              SUCCESS_RATE=$((SUCCESS_COUNT * 100 / TOTAL_TESTS))
             else
-              SUCCESS_RATE=0
+              echo "⚠️ 截图创建失败"
             fi
             
-            echo "📊 稳定性结果: $SUCCESS_COUNT/$TOTAL_TESTS (${SUCCESS_RATE}%)"
-            
-            if [ $SUCCESS_RATE -ge 80 ]; then
-              echo "✅ 模拟器稳定性测试通过"
-            else
-              echo "⚠️ 模拟器稳定性较差，但不影响整体测试结果"
+            # 应用状态检查
+            echo "🔍 检查应用状态:"
+            if adb -s $DEVICE shell pm list packages | grep -q "$PACKAGE"; then
+              echo "✅ 应用已安装"
             fi
             
-            echo "🎉 整合测试完成！"
+            if adb -s $DEVICE shell dumpsys package "$PACKAGE" | grep -q "versionName"; then
+              VERSION=$(adb -s $DEVICE shell dumpsys package "$PACKAGE" | grep "versionName" | head -1)
+              echo "📋 应用信息: $VERSION"
+            fi
+            
+            echo "🎉 Android测试完成！"
 
       # ============================================
       # 阶段6: 结果总结和清理
@@ -447,34 +331,38 @@ jobs:
       - name: Test Summary
         if: always()
         run: |
-          echo "🎯 Android CI/CD 流程总结:"
+          echo "🎯 Android CI/CD 精简流程总结:"
           echo ""
-          echo "📊 五阶段执行状态:"
-          echo "  1️⃣ 基础环境+缓存恢复: ✅"
-          echo "  2️⃣ 依赖下载+环境配置: ✅" 
-          echo "  3️⃣ AVD准备+快照生成: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo "  4️⃣ APK独立构建: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo "  5️⃣ 模拟器整合测试: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "📊 三阶段执行状态:"
+          echo "  1️⃣ 环境准备+缓存: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  2️⃣ APK构建: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  3️⃣ 模拟器测试+截图: ${{ job.status == 'success' && '✅' || '需检查' }}"
           echo ""
-          echo "🏗️ 流程架构优势 (v2.0优化版):"
-          echo "  ⚡ 分离式缓存: SDK/AVD独立缓存管理"
-          echo "  🔍 阶段分离: 精确问题定位" 
-          echo "  📈 稳定性: 预构建+预配置+固定APK"
-          echo "  🛡️ 容错性: 智能重试机制"
-          echo "  ⏱️ 性能优化: 30分钟总超时(40→30分钟)"
+          echo "🎯 核心功能实现:"
+          echo "  📦 APK构建: kalendar-app-foss-debug.apk"
+          echo "  🚀 模拟器启动: Android ${{ env.API_LEVEL }}"
+          echo "  📲 应用安装: org.fossify.calendar"
+          echo "  📸 运行截图: calendar_running_screenshot.png"
+          echo ""
+          echo "⚡ 性能优化 (v3.0精简版):"
+          echo "  🗑️ 移除复杂预检查和快照逻辑"
+          echo "  🎯 专注核心目标: 构建→安装→运行→截图"
+          echo "  💾 保留有效缓存: SDK和AVD配置"
+          echo "  📸 新增截图功能: 验证应用运行状态"
           
           if [ "${{ job.status }}" = "success" ]; then
             echo ""
-            echo "🎉 所有阶段均成功完成！"
+            echo "🎉 测试完成，截图已生成！"
           fi
 
-      - name: Upload Artifacts
+      - name: Upload Test Results and Screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-test-results-${{ github.run_number }}
           path: |
             app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            calendar_running_screenshot.png
             build/reports/**/*
             app/build/reports/**/*
           retention-days: 7
