@@ -23,11 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # 高级 Gradle 性能优化 - 稳定且高效
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.daemon.jvm.options="-Xmx2g" -Dorg.gradle.jvmargs="-Xmx10g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseCompressedOops"
-      # 额外的编译优化环境变量
-      KOTLIN_INCREMENTAL: true
-      KOTLIN_DAEMON_JVMARGS: "-Xmx2g -XX:+UseG1GC"
+      # 简化的 Gradle 配置 - 稳定为主
+      GRADLE_OPTS: -Xmx6g -XX:+UseG1GC
       # Android 相关环境变量
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_HOME: /usr/local/lib/android/sdk
@@ -165,17 +162,15 @@ jobs:
       # ============================================
 
       - name: Build APK
-        timeout-minutes: 12
+        timeout-minutes: 15
         run: |
           echo "🚀 开始APK构建..."
-          START_TIME=$(date +%s)
+          echo "📋 Gradle版本信息:"
+          ./gradlew --version
           
-          # 使用基础稳定的构建命令
-          ./gradlew clean assembleFossDebug --stacktrace
-          
-          END_TIME=$(date +%s)
-          DURATION=$((END_TIME - START_TIME))
-          echo "✅ 构建完成，耗时: ${DURATION}秒"
+          echo "🔧 开始清理和构建..."
+          ./gradlew clean
+          ./gradlew assembleFossDebug --stacktrace --info
 
       # ============================================
       # 阶段5: 模拟器测试 + 截图
