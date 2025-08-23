@@ -95,16 +95,10 @@ jobs:
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
           
-          # AVD 性能优化环境变量
+          # AVD 性能优化环境变量（仅保留模拟器运行时需要的）
           echo "ANDROID_EMULATOR_USE_SYSTEM_LIBS=1" >> $GITHUB_ENV
           echo "QEMU_AUDIO_DRV=none" >> $GITHUB_ENV
           echo "ANDROID_EMULATOR_FORCE_32BIT=false" >> $GITHUB_ENV
-          
-          # AVD 硬件配置环境变量
-          echo "ANDROID_AVD_CPU_CORES=2" >> $GITHUB_ENV
-          echo "ANDROID_AVD_RAM_SIZE=2048" >> $GITHUB_ENV
-          echo "ANDROID_AVD_HEAP_SIZE=256" >> $GITHUB_ENV
-          echo "ANDROID_AVD_DATA_PARTITION=2048m" >> $GITHUB_ENV
           
           echo "✅ Android 环境配置完成"
 
@@ -142,13 +136,8 @@ jobs:
               --package "$SYSTEM_IMAGE" \
               --device "Nexus 6"
             
-            # 使用环境变量优化AVD配置 - 更简洁的方式
-            echo "⚙️ 应用环境变量AVD优化配置..."
-            echo "📋 CPU核心: $ANDROID_AVD_CPU_CORES"
-            echo "📋 内存大小: ${ANDROID_AVD_RAM_SIZE}MB"
-            echo "📋 堆内存: ${ANDROID_AVD_HEAP_SIZE}MB"
-            echo "📋 数据分区: $ANDROID_AVD_DATA_PARTITION"
-            echo "✅ AVD环境变量配置完成"
+            # AVD 创建完成，配置将通过启动参数传递
+            echo "✅ AVD 创建完成，性能配置将通过启动参数应用"
           fi
           
           # 最终验证
