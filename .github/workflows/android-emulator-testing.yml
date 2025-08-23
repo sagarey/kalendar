@@ -60,13 +60,12 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_6
-          # 极致性能配置 - 8GB内存 + 优化启动参数
+          # Ubuntu 兼容性优化配置 - 8GB内存
           emulator-options: >-
             -no-window -no-snapshot -no-audio -no-boot-anim 
-            -gpu host -accel auto -netdelay none -netspeed full 
-            -cores 4 -memory 8192 -cache-size 1024 
-            -camera-back none -camera-front none 
-            -skin 1080x2340
+            -gpu swiftshader_indirect -netdelay none -netspeed full 
+            -cores 4 -memory 8192 
+            -camera-back none -camera-front none
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
