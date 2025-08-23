@@ -159,19 +159,22 @@ jobs:
             echo "🔍 检查模拟器状态..."
             adb devices
             
-            # 等待设备连接，增加重试次数
+            # 等待设备连接，使用 while 循环替代 for 循环
             echo "⏳ 等待 ADB 连接..."
             ADB_CONNECTED=false
-            for i in {1..8}; do
-              echo "🔍 连接尝试 $i/8..."
+            attempt=1
+            max_attempts=8
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "🔍 连接尝试 $attempt/$max_attempts..."
               adb devices
               if adb devices | grep -q "emulator.*device"; then
-                echo "✅ ADB 已连接 ($i/8)"
+                echo "✅ ADB 已连接 ($attempt/$max_attempts)"
                 ADB_CONNECTED=true
                 break
               else
-                echo "⏳ 等待连接... ($i/8)"
-                if [ $i -eq 4 ]; then
+                echo "⏳ 等待连接... ($attempt/$max_attempts)"
+                if [ $attempt -eq 4 ]; then
                   echo "🔄 中途重启 ADB 服务..."
                   adb kill-server 2>/dev/null || true
                   sleep 2
@@ -180,6 +183,7 @@ jobs:
                 fi
                 sleep 5
               fi
+              attempt=$((attempt + 1))
             done
             
             if [ "$ADB_CONNECTED" = false ]; then
