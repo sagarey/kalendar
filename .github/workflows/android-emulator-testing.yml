@@ -119,7 +119,7 @@ jobs:
           echo "✅ Android 环境配置完成"
 
       # ============================================
-      # 阶段3: AVD 准备和缓存
+      # 阶段3: AVD 准备、缓存和快照生成
       # ============================================
       
       - name: Cache AVD
@@ -190,6 +190,23 @@ jobs:
             exit 1
           fi
 
+      - name: Generate AVD snapshot for caching
+        if: steps.cache-avd.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.TARGET }}
+          arch: ${{ env.ARCH }}
+          profile: ${{ env.PROFILE }}
+          avd-name: test-api${{ env.API_LEVEL }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
+          disable-animations: true
+          disable-spellchecker: true
+          disable-linux-hw-accel: false
+          script: echo "📷 AVD快照生成完成"
+
       # ============================================
       # 阶段4: APK 构建
       # ============================================
@@ -247,25 +264,8 @@ jobs:
           fi
 
       # ============================================
-      # 阶段5: 模拟器测试
+      # 阶段5: 模拟器测试 (使用预准备的快照)
       # ============================================
-
-      - name: Generate AVD snapshot for caching
-        if: steps.cache-avd.outputs.cache-hit != 'true'
-        timeout-minutes: 5
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ env.API_LEVEL }}
-          target: ${{ env.TARGET }}
-          arch: ${{ env.ARCH }}
-          profile: ${{ env.PROFILE }}
-          avd-name: test-api${{ env.API_LEVEL }}
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
-          disable-animations: true
-          disable-spellchecker: true
-          disable-linux-hw-accel: false
-          script: echo "📷 AVD快照生成完成"
 
       - name: Run Integrated Tests
         timeout-minutes: 15
@@ -365,11 +365,11 @@ jobs:
           echo "🎯 Android CI/CD 流程总结:"
           echo ""
           echo "📊 五阶段执行状态:"
-          echo "  1️⃣ 基础环境+缓存: ✅"
-          echo "  2️⃣ 依赖下载+配置: ✅" 
-          echo "  3️⃣ AVD准备+缓存: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo "  4️⃣ APK构建: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo "  5️⃣ 模拟器测试: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  1️⃣ 基础环境+缓存恢复: ✅"
+          echo "  2️⃣ 依赖下载+环境配置: ✅" 
+          echo "  3️⃣ AVD准备+快照生成: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  4️⃣ APK独立构建: ${{ job.status == 'success' && '✅' || '需检查' }}"
+          echo "  5️⃣ 模拟器整合测试: ${{ job.status == 'success' && '✅' || '需检查' }}"
           echo ""
           echo "🏗️ 流程架构优势:"
           echo "  ⚡ 缓存优先: SDK/AVD高效复用"
