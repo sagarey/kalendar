@@ -43,24 +43,8 @@ jobs:
           fetch-depth: 1
 
       # ============================================
-      # 缓存策略决策：检查 → 还原 or 初始化
+      # 缓存恢复
       # ============================================
-
-      - name: Check Cache Availability
-        id: check-cache
-        run: |
-          echo "🔍 检查缓存可用性..."
-          echo ""
-          echo "📋 缓存键信息 (v11统一版本):"
-          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11"
-          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11"
-          echo ""
-          echo "📁 初始本地文件检查:"
-          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
-          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo '✅ 存在' || echo '❌ 不存在')"
-          echo ""
-          echo "🎯 接下来将尝试缓存恢复..."
-          echo "⚠️  注意: 如果缓存未命中，将进行完整的SDK/AVD初始化"
 
       - name: Restore SDK Cache
         id: restore-sdk-cache
@@ -76,32 +60,7 @@ jobs:
           path: ~/.android/avd
           key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
 
-      - name: Cache Strategy Decision
-        run: |
-          echo "🎯 缓存策略决策："
-          echo ""
-          echo "📊 缓存恢复结果:"
-          echo "  📱 SDK配置: ${{ steps.restore-sdk-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
-          echo "  🎮 AVD配置: ${{ steps.restore-avd-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
-          echo ""
-          echo "📁 恢复后文件检查:"
-          echo "  SDK目录: $([ -d "$ANDROID_HOME" ] && du -sh "$ANDROID_HOME" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
-          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
-          echo ""
-          echo "🔄 执行策略分流:"
-          if [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "  🚀 路径A: 双缓存恢复成功 → 跳过初始化，直接验证"
-          elif [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "  ⚡ 路径B: SDK恢复成功 → 跳过SDK初始化，仅初始化AVD"
-          elif [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "  🔧 路径C: AVD恢复成功 → 跳过AVD初始化，仅初始化SDK"
-          else
-            echo "  📥 路径D: 全新初始化 → 完整的SDK和AVD安装配置"
-          fi
-          echo ""
-          echo "📋 详细状态值:"
-          echo "  SDK恢复状态: ${{ steps.restore-sdk-cache.outputs.cache-hit }}"
-          echo "  AVD恢复状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
+
 
       # ============================================
       # 阶段2: 基础环境设置
@@ -113,16 +72,17 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Gradle
+      - name: Setup Gradle & Grant Permissions
+        run: |
+          chmod +x gradlew
+        
+      - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
       # ============================================
-      # 阶段3: SDK 设置 (基于缓存优化)
+      # 阶段3: Android SDK 设置 (基于缓存优化)
       # ============================================
 
       - name: Setup SDK
@@ -143,122 +103,13 @@ jobs:
           key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       # ============================================
-      # 阶段2: 依赖下载和环境配置
+      # 阶段4: 环境配置
       # ============================================
-
-      - name: Pre-download dependencies
-        timeout-minutes: 5
-        run: |
-          echo "📥 下载项目依赖..."
-          echo "💾 系统资源: $(free -h | grep '^Mem:' | awk '{print $2}') 内存 | $(nproc) CPU核心"
-          ./gradlew dependencies --stacktrace --no-daemon
-          echo "✅ 依赖下载完成"
 
       - name: Setup Android Environment
         run: |
-          echo "🚀 配置 Android 运行环境..."
-          
-          # 启用 KVM 硬件加速
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          
-          # 检查 KVM 支持
-          if [ -r /dev/kvm ]; then
-            echo "✅ KVM 硬件加速已启用"
-          else
-            echo "⚠️ KVM 硬件加速不可用，将使用软件模拟"
-          fi
-          
-          # 设置图形环境
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
-          
-          echo "✅ Android 环境配置完成"
-
-      # ============================================
-      # 阶段3: AVD环境准备 (基于缓存状态)
-      # ============================================
-
-      - name: Setup AVD
-        timeout-minutes: 6
-        run: |
-          echo "🔧 准备 AVD 环境..."
-          echo "🔍 AVD缓存状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
-          
-          # 基于缓存状态决定执行策略
-          if [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "⚡ AVD缓存命中，验证现有配置..."
-            AVD_NAME="test-api${{ env.API_LEVEL }}"
-            
-            if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
-              echo "✅ AVD配置文件存在"
-              AVD_SIZE=$(du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo "unknown")
-              echo "💾 AVD缓存大小: $AVD_SIZE"
-              
-              # 验证AVD可用性
-              if avdmanager list avd | grep -q "$AVD_NAME"; then
-                echo "✅ AVD缓存验证成功: $AVD_NAME"
-                echo "🚀 跳过AVD创建，直接使用缓存"
-              else
-                echo "⚠️ AVD缓存损坏，重新创建..."
-                echo "false" > /tmp/cache_valid
-              fi
-            else
-              echo "⚠️ AVD配置文件缺失，重新创建..."
-              echo "false" > /tmp/cache_valid
-            fi
-          else
-            echo "📥 AVD缓存未命中，开始创建..."
-            echo "false" > /tmp/cache_valid
-          fi
-          
-          # 如果缓存无效或未命中，执行完整创建流程
-          if [ ! -f /tmp/cache_valid ] || [ "$(cat /tmp/cache_valid 2>/dev/null)" = "false" ]; then
-            echo "🔨 执行完整AVD创建流程..."
-            
-            # 检查并安装必要的system-images
-            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
-            echo "📦 检查系统镜像: $SYSTEM_IMAGE"
-            
-            if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
-              echo "📥 下载系统镜像..."
-              echo "y" | sdkmanager "$SYSTEM_IMAGE"
-            else
-              echo "✅ 系统镜像已存在"
-            fi
-            
-            # 创建AVD
-            AVD_NAME="test-api${{ env.API_LEVEL }}"
-            echo "📱 创建AVD: $AVD_NAME"
-            echo "no" | avdmanager create avd \
-              --force \
-              --name "$AVD_NAME" \
-              --abi "default/x86_64" \
-              --package "$SYSTEM_IMAGE" \
-              --device "Nexus 6"
-            
-            # 优化AVD配置
-            AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
-            if [ -f "$AVD_CONFIG" ]; then
-              echo "⚙️ 应用性能优化配置..."
-              echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
-              echo "hw.ramSize=2048" >> "$AVD_CONFIG"
-              echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-              echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-              echo "✅ AVD性能优化完成"
-            fi
-          fi
-          
-          # 最终验证
-          echo "🔍 最终AVD验证:"
-          AVD_NAME="test-api${{ env.API_LEVEL }}"
-          if avdmanager list avd | grep -q "$AVD_NAME"; then
-            echo "✅ AVD准备完成: $AVD_NAME"
-          else
-            echo "❌ AVD验证失败"
-            exit 1
-          fi
 
       - name: Save AVD Cache
         if: steps.restore-avd-cache.outputs.cache-hit != 'true'
@@ -270,29 +121,22 @@ jobs:
 
 
       # ============================================
-      # 阶段4: APK 构建
+      # 阶段5: APK 构建 (包含依赖下载)
       # ============================================
 
       - name: Build APK
         timeout-minutes: 10
         run: |
-          echo "🔨 构建 APK..."
+          echo "🔨 构建 APK (包含依赖下载)..."
           
           BUILD_START_TIME=$(date +%s)
           
-          # 构建环境检查
-          echo "🔍 构建环境:"
-          echo "  内存可用: $(free -h | grep '^Mem:' | awk '{print $4}')"
-          echo "  磁盘可用: $(df -h . | tail -1 | awk '{print $4}')"
-          echo "  Java版本: $(java -version 2>&1 | head -1)"
-          
-          # 清理构建环境和旧APK文件
-          echo "🧹 清理构建环境..."
-          ./gradlew clean --stacktrace
+          # 下载依赖并构建
+          echo "📥 下载依赖并清理构建环境..."
+          ./gradlew dependencies clean --stacktrace --no-daemon
           
           # 清理可能残留的APK文件
-          echo "🗑️ 清理旧APK文件..."
-          rm -f app/build/outputs/apk/foss/debug/*.apk || echo "ℹ️ 无旧APK文件需要清理"
+          rm -f app/build/outputs/apk/foss/debug/*.apk 2>/dev/null || true
           
           # 执行构建
           echo "🔨 开始APK构建..."
@@ -301,18 +145,14 @@ jobs:
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ APK构建成功 (${BUILD_DURATION}秒)"
             
-            # 验证固定的APK文件
+            # 验证APK文件
             APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
-            echo "🔍 验证APK文件: $APK_PATH"
-            
             if [ -f "$APK_PATH" ]; then
               APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
               echo "✅ APK构建成功: $APK_PATH ($APK_SIZE)"
             else
-              echo "❌ 预期APK文件未找到: $APK_PATH"
-              echo "🔍 检查构建输出:"
-              find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
-              ls -la app/build/outputs/apk/foss/debug/ 2>/dev/null || echo "debug目录不存在"
+              echo "❌ APK文件未找到: $APK_PATH"
+              find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -3 || echo "未找到任何APK文件"
               exit 1
             fi
           else
@@ -342,38 +182,7 @@ jobs:
           script: adb uninstall org.fossify.calendar.debug || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar.debug && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
 
       # ============================================
-      # 阶段6: 结果总结和清理
-      # ============================================
-
-      - name: Test Summary
-        if: always()
-        run: |
-          echo "🎯 Android CI/CD 精简流程总结:"
-          echo ""
-          echo "📊 三阶段执行状态:"
-          echo "  1️⃣ 环境准备+缓存: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo "  2️⃣ APK构建: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo "  3️⃣ 模拟器测试+截图: ${{ job.status == 'success' && '✅' || '需检查' }}"
-          echo ""
-          echo "🎯 核心功能实现:"
-          echo "  📦 APK构建: kalendar-app-foss-debug.apk"
-          echo "  🚀 模拟器启动: Android ${{ env.API_LEVEL }}"
-          echo "  📲 应用安装: org.fossify.calendar"
-          echo "  📸 运行截图: calendar_running_screenshot.png"
-          echo ""
-          echo "⚡ 性能优化 (v3.0精简版):"
-          echo "  🗑️ 移除复杂预检查和快照逻辑"
-          echo "  🎯 专注核心目标: 构建→安装→运行→截图"
-          echo "  💾 保留有效缓存: SDK和AVD配置"
-          echo "  📸 新增截图功能: 验证应用运行状态"
-          
-          if [ "${{ job.status }}" = "success" ]; then
-            echo ""
-            echo "🎉 测试完成，截图已生成！"
-          fi
-
-      # ============================================
-      # 结果总结：缓存已在各Setup步骤后立即保存
+      # 结果上传
       # ============================================
 
       - name: Upload Test Results and Screenshots
