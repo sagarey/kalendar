@@ -5,18 +5,28 @@ on:
 
 env:
   API_LEVEL: 34
-  GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx6g" -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true
+  # 高性能 Gradle 配置
+  GRADLE_OPTS: >-
+    -Dorg.gradle.jvmargs="-Xmx6g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:MaxGCPauseMillis=100"
+    -Dorg.gradle.daemon=true 
+    -Dorg.gradle.parallel=true 
+    -Dorg.gradle.configureondemand=true
+    -Dorg.gradle.caching=true
+    -Dorg.gradle.workers.max=4
+    -Dkotlin.incremental=true
+    -Dkotlin.incremental.android=true
+    -Dkotlin.compiler.execution.strategy=in-process
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15  # 优化后应该更快
     
     steps:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Java & Android
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -28,72 +38,47 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Enable KVM & Optimize Environment
+      - name: Build APK with Optimizations
         run: |
-          echo "🚀 启用 KVM 硬件加速..."
-          # 配置 KVM 权限
+          # KVM 一步到位配置
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          
-          # 检查 KVM 状态
-          if [ -r /dev/kvm ]; then
-            echo "✅ KVM 硬件加速已启用"
-            ls -la /dev/kvm
-          else
-            echo "⚠️ KVM 不可用，将使用软件模拟"
-          fi
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
           
           # 设置环境变量
-          echo "ANDROID_EMULATOR_USE_SYSTEM_LIBS=1" >> $GITHUB_ENV
-          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
-          echo "QEMU_AUDIO_DRV=none" >> $GITHUB_ENV
+          export ANDROID_EMULATOR_USE_SYSTEM_LIBS=1
+          export QT_QPA_PLATFORM=offscreen
+          export QEMU_AUDIO_DRV=none
           
-          # 显示系统资源
-          echo "💻 系统资源:"
-          echo "  CPU: $(nproc) 核心"
-          echo "  内存: $(free -h | grep '^Mem:' | awk '{print $2}')"
-          echo "  可用内存: $(free -h | grep '^Mem:' | awk '{print $7}')"
-
-      - name: Build APK
-        run: |
+          # 高性能构建
           chmod +x gradlew
-          ./gradlew assembleFossDebug --no-daemon --stacktrace
+          ./gradlew assembleFossDebug --build-cache --parallel --no-daemon
           
-      - name: Android Emulator Test
+      - name: High-Performance Emulator Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
-          target: default
+          target: google_apis
           arch: x86_64
-          profile: Nexus 6
-          # 增加资源分配和优化参数 - 8GB 内存配置
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -cores 4 -memory 8192 -camera-back none -camera-front none -no-snapshot-save -no-snapshot-load -wipe-data -partition-size 2048
+          profile: pixel_6_pro
+          # 极致性能配置 - 8GB内存 + 优化启动参数
+          emulator-options: >-
+            -no-window -no-snapshot -no-audio -no-boot-anim 
+            -gpu host -accel auto -netdelay none -netspeed full 
+            -cores 4 -memory 8192 -cache-size 1024 
+            -camera-back none -camera-front none 
+            -skin 1080x2400
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
+          working-directory: ./
           script: |
-            echo "📱 等待模拟器完全启动..."
-            adb wait-for-device
-            adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 3; done; input keyevent 82'
-            
-            echo "📦 安装应用..."
-            adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
-            
-            echo "🔍 验证安装..."
-            adb shell pm list packages | grep org.fossify.calendar.debug
-            
-            echo "🚀 启动应用..."
-            adb shell am start -n org.fossify.calendar.debug/.activities.SplashActivity
-            
-            echo "⏱️ 等待应用加载..."
-            sleep 10
-            
-            echo "📸 截图..."
+            # 快速等待和安装流程
+            adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            adb shell am start -W -n org.fossify.calendar.debug/.activities.SplashActivity
+            sleep 5
             adb shell screencap -p /sdcard/screenshot.png
             adb pull /sdcard/screenshot.png calendar_screenshot.png
-            
-            echo "✅ 测试完成！"
 
       - name: Upload Results
         uses: actions/upload-artifact@v4
