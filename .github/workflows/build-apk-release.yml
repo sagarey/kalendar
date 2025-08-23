@@ -64,7 +64,7 @@ jobs:
           ./gradlew dependencies --stacktrace
           echo "✅ 依赖下载完成"
 
-      - name: Cache Android SDK
+      - name: Cache SDK
         uses: actions/cache@v4
         with:
           path: |

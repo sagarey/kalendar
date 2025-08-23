@@ -81,7 +81,7 @@ jobs:
           echo "🎯 缓存策略决策："
           echo ""
           echo "📊 缓存恢复结果:"
-          echo "  📱 Android SDK: ${{ steps.restore-sdk-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
+          echo "  📱 SDK配置: ${{ steps.restore-sdk-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
           echo "  🎮 AVD配置: ${{ steps.restore-avd-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
           echo ""
           echo "📁 恢复后文件检查:"
@@ -122,7 +122,7 @@ jobs:
         run: chmod +x gradlew
 
       # ============================================
-      # 阶段3: Android SDK 设置 (基于缓存优化)
+      # 阶段3: SDK 设置 (基于缓存优化)
       # ============================================
 
       - name: Setup SDK
