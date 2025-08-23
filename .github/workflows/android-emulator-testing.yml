@@ -137,7 +137,7 @@ jobs:
 
 
       - name: Start Android Emulator
-        timeout-minutes: 10  # 缩短超时时间，快速失败
+        timeout-minutes: 10
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
@@ -151,67 +151,65 @@ jobs:
           disable-spellchecker: true
           disable-linux-hw-accel: false
           working-directory: ./
-          script: |
-            set -e
-            echo "📱 启动模拟器..."
-            sleep 15
-            echo "🔍 检查模拟器状态..."
+          script: echo "📱 模拟器启动完成，准备测试..."
+
+      - name: Wait for Emulator and Setup
+        timeout-minutes: 8
+        run: |
+          echo "🔍 等待模拟器完全启动..."
+          sleep 20
+          
+          echo "📱 检查设备状态..."
+          adb devices
+          
+          # 等待设备连接
+          echo "⏳ 等待 ADB 连接..."
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            echo "连接尝试 $i/10..."
+            if adb devices | grep -q "emulator.*device"; then
+              echo "✅ ADB 已连接"
+              break
+            fi
+            
+            if [ $i -eq 5 ]; then
+              echo "🔄 重启 ADB 服务..."
+              adb kill-server 2>/dev/null || true
+              sleep 2
+              adb start-server 2>/dev/null || true
+              sleep 3
+            fi
+            
+            sleep 5
+          done
+          
+          # 获取设备
+          DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
+          if [ -z "$DEVICE" ]; then
+            echo "❌ 未找到模拟器设备"
             adb devices
-            echo "⏳ 等待 ADB 连接..."
-            attempt=1
-            max_attempts=10
-            while [ $attempt -le $max_attempts ]
-            do
-              echo "连接尝试 $attempt/$max_attempts..."
-              if adb devices | grep -q "emulator.*device"
-              then
-                echo "✅ ADB 已连接"
-                break
-              fi
-              if [ $attempt -eq 5 ]
-              then
-                echo "重启 ADB 服务..."
-                adb kill-server 2>/dev/null || true
-                sleep 2
-                adb start-server 2>/dev/null || true
-                sleep 3
-              fi
-              sleep 5
-              attempt=$((attempt + 1))
-            done
-            DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
-            if [ -z "$DEVICE" ]
-            then
-              echo "❌ 未找到模拟器设备"
-              adb devices
-              exit 1
+            exit 1
+          fi
+          echo "📱 找到设备: $DEVICE"
+          
+          # 等待系统启动
+          echo "⏳ 等待系统完全启动..."
+          for i in $(seq 1 40); do
+            boot_status=$(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
+            if [ "$boot_status" = "1" ]; then
+              echo "✅ 系统启动完成"
+              break
             fi
-            echo "📱 设备: $DEVICE"
-            echo "⏳ 等待系统启动..."
-            check_count=0
-            max_checks=40
-            while [ $check_count -lt $max_checks ]
-            do
-              boot_status=$(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
-              if [ "$boot_status" = "1" ]
-              then
-                echo "✅ 系统启动完成"
-                break
-              fi
-              echo "启动检查 $((check_count + 1))/$max_checks..."
-              sleep 5
-              check_count=$((check_count + 1))
-            done
-            if [ $check_count -eq $max_checks ]
-            then
-              echo "❌ 系统启动超时"
-              exit 1
-            fi
-            echo "⚡ 优化性能设置..."
-            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
-            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
-            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
-            echo "✅ 模拟器准备完成"
+            echo "启动检查 $i/40..."
+            sleep 5
+          done
+          
+          # 优化性能
+          echo "⚡ 优化系统性能..."
+          adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
+          adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
+          adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
+          
+          echo "✅ 模拟器准备完成"
 
       - name: Emulator Diagnostics
         if: failure()
