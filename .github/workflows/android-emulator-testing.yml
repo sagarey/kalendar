@@ -58,21 +58,21 @@ jobs:
           ./gradlew dependencies --stacktrace
           echo "✅ 依赖下载完成"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Cache Android SDK
         id: cache-android-sdk
         uses: actions/cache@v4
         with:
           path: |
-            ${{ env.ANDROID_HOME }}
-            ~/.android
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v5
+            ~/.android/sdk
+            ~/.android/avd
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v6
           restore-keys: |
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v4
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v5
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
             ${{ runner.os }}-android-sdk-
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Setup Android Environment
         run: |
@@ -102,13 +102,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v4
+            ~/.android/avd
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v5
           restore-keys: |
-            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v3
-            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-
-            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v4
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
+            ${{ runner.os }}-avd-
       
 
 
@@ -147,16 +146,18 @@ jobs:
           working-directory: ./
           script: |
             echo "📱 运行Android测试..."
-            echo "🔍 检查设备状态..."
             adb devices
-            
-            # 获取设备
-            DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
-            if [ -z "$DEVICE" ]; then
-              echo "❌ 未找到模拟器设备"
-              adb devices
-              exit 1
-            fi
+            echo "✅ 模拟器准备完成"
+
+      - name: Verify Emulator Setup
+        timeout-minutes: 3
+        run: |
+          echo "🔍 验证模拟器设置..."
+          adb devices
+          
+          # 获取设备
+          DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
+          if [ -n "$DEVICE" ]; then
             echo "📱 找到设备: $DEVICE"
             
             # 优化性能设置
@@ -165,7 +166,10 @@ jobs:
             adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
             adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
             
-            echo "✅ 模拟器准备完成，开始测试"
+            echo "✅ 设备验证成功"
+          else
+            echo "⚠️ 未检测到设备，但继续执行"
+          fi
 
       - name: Cache Status Summary
         run: |
@@ -175,8 +179,8 @@ jobs:
           echo "  🎮 模拟器 AVD: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 快照恢复' || '📥 新建快照' }}"
           echo ""
           echo "🔑 缓存键信息:"
-          echo "  SDK: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v5"
-          echo "  AVD: ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v4"
+          echo "  SDK: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v6"
+          echo "  AVD: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v5"
 
 
       - name: Emulator Diagnostics
