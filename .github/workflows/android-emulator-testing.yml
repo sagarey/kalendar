@@ -75,9 +75,11 @@ jobs:
             # 等待设备启动完成 (已预设中文环境)
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
-            # 安装并启动应用
+            # 安装应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
-            adb shell am start -W -n org.fossify.calendar.debug/.activities.SplashActivity.Green
+            
+            # 通过 monkey 启动应用 (更可靠的方式)
+            adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1
             sleep 8
             
             # 截图
