@@ -52,8 +52,8 @@ jobs:
           echo "🔍 检查缓存可用性..."
           echo ""
           echo "📋 缓存键信息:"
-          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
-          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
+          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9"
+          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8"
           echo ""
           echo "📁 本地文件检查:"
           echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
@@ -66,8 +66,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9
           restore-keys: |
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v7
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
             ${{ runner.os }}-android-sdk-
@@ -77,8 +78,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8
           restore-keys: |
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v6
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
@@ -317,7 +319,19 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: echo "Testing APK installation and running" && adb devices && adb wait-for-device && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && sleep 3 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png && echo "Screenshot saved"
+          script: |
+            echo "🚀 Android模拟器测试开始"
+            echo "📱 检查设备连接"
+            adb devices
+            adb wait-for-device
+            echo "📲 安装APK"
+            adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            echo "⏳ 等待应用加载"
+            sleep 5
+            echo "📸 获取截图"
+            adb shell screencap -p /sdcard/screenshot.png
+            adb pull /sdcard/screenshot.png calendar_running_screenshot.png
+            echo "✅ 测试完成，截图已保存"
 
       # ============================================
       # 阶段6: 结果总结和清理
@@ -359,14 +373,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9
 
       - name: Save AVD Cache
         if: steps.restore-avd-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8
 
       - name: Cache Save Summary
         if: always()
