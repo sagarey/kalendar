@@ -2,3 +2,4 @@
 alwaysApply: true
 ---
 1. 使用中文回答问题
+2. github actions runner 默认是 4核/16GB
