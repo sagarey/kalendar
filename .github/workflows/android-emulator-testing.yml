@@ -106,10 +106,50 @@ jobs:
       # 阶段4: 环境配置
       # ============================================
 
-      - name: Setup AVD
+      - name: Setup Android Environment
         run: |
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Setup AVD
+        if: steps.restore-avd-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 6
+        run: |
+          echo "🔧 创建 AVD..."
+          
+          # 检查并安装必要的system-images
+          SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
+          echo "📦 检查系统镜像: $SYSTEM_IMAGE"
+          
+          if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
+            echo "📥 下载系统镜像..."
+            echo "y" | sdkmanager "$SYSTEM_IMAGE"
+          else
+            echo "✅ 系统镜像已存在"
+          fi
+          
+          # 创建AVD
+          AVD_NAME="test-api${{ env.API_LEVEL }}"
+          echo "📱 创建AVD: $AVD_NAME"
+          echo "no" | avdmanager create avd \
+            --force \
+            --name "$AVD_NAME" \
+            --abi "default/x86_64" \
+            --package "$SYSTEM_IMAGE" \
+            --device "Nexus 6"
+          
+          # 优化AVD配置
+          AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
+          if [ -f "$AVD_CONFIG" ]; then
+            echo "⚙️ 应用性能优化配置..."
+            echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
+            echo "hw.ramSize=2048" >> "$AVD_CONFIG"
+            echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
+            echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
+            echo "✅ AVD性能优化完成"
+          fi
+          
+          echo "✅ AVD创建完成: $AVD_NAME"
 
       - name: Save AVD Cache
         if: steps.restore-avd-cache.outputs.cache-hit != 'true'
