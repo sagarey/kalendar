@@ -66,7 +66,7 @@ jobs:
         id: restore-sdk-cache
         uses: actions/cache/restore@v4
         with:
-          path: ~/.android/sdk
+          path: ${{ env.ANDROID_HOME }}
           key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       - name: Restore AVD Cache
@@ -85,7 +85,7 @@ jobs:
           echo "  🎮 AVD配置: ${{ steps.restore-avd-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
           echo ""
           echo "📁 恢复后文件检查:"
-          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && du -sh "$HOME/.android/sdk" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
+          echo "  SDK目录: $([ -d "$ANDROID_HOME" ] && du -sh "$ANDROID_HOME" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
           echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
           echo ""
           echo "🔄 执行策略分流:"
@@ -104,7 +104,7 @@ jobs:
           echo "  AVD恢复状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
 
       # ============================================
-      # 阶段2: 环境设置 (基于缓存状态优化)
+      # 阶段2: 基础环境设置
       # ============================================
 
       - name: Setup Java
@@ -121,15 +121,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Setup SDK
+      # ============================================
+      # 阶段3: Android SDK 设置 (基于缓存优化)
+      # ============================================
+
+      - name: Setup Android SDK
         if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
+        with:
+          packages: |
+            platform-tools
+            platforms;android-${{ env.API_LEVEL }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+            system-images;android-${{ env.API_LEVEL }};default;x86_64
 
       - name: Save SDK Cache
         if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ~/.android/sdk
+          path: ${{ env.ANDROID_HOME }}
           key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       # ============================================
