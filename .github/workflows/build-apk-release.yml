@@ -23,14 +23,14 @@ concurrency:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50  # 合理的超时时间，有问题快速失败
     permissions:
       contents: write
       actions: read
     env:
-      # 优化 Gradle 性能 - 2核环境配置
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=false -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx3g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
-      # Android 相关环境变量
+      # 优化 Gradle 性能 - 公开项目高性能配置
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dorg.gradle.jvmargs="-Xmx5g -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseFastUnorderedTimeStamps"
+      # Android 相关环境变量 - 最新配置
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
@@ -67,6 +67,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Pre-download dependencies
+        timeout-minutes: 10  # 依赖下载超时控制
         run: |
           echo "📥 下载依赖..."
           ./gradlew dependencies --no-daemon --stacktrace
@@ -88,9 +89,13 @@ jobs:
           path: |
             app/build/intermediates
             app/build/tmp
-          key: ${{ runner.os }}-build-release-${{ github.sha }}
+            app/build/generated
+            build/kotlin
+            .gradle/kotlin-dsl
+          key: ${{ runner.os }}-build-release-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/*.kt', '**/*.java') }}
           restore-keys: |
             ${{ runner.os }}-build-release-
+            ${{ runner.os }}-build-
 
       - name: Extract version info
         id: version
@@ -106,22 +111,31 @@ jobs:
           fi
 
       - name: Build APK (Debug)
+        timeout-minutes: 20  # 构建超时控制
         run: |
           echo "🔨 构建 APK..."
+          echo "💾 可用内存: $(free -h | grep '^Mem:' | awk '{print $7}')"
+          echo "🏗️ CPU 核心数: $(nproc)"
           BUILD_START_TIME=$(date +%s)
           
-          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache; then
+          # 启用更详细的构建信息
+          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache --info; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ 构建成功 (${BUILD_DURATION}s)"
             
-            # 显示构建产物
+            # 显示构建产物和详细信息
             if [ -d "app/build/outputs" ]; then
               find app/build/outputs -name "*.apk" | while read output; do
                 size=$(du -h "$output" | cut -f1)
                 echo "📱 $(basename "$output"): $size"
               done
             fi
+            
+            # 显示Gradle性能统计
+            echo "📊 构建性能统计:"
+            echo "- 构建时间: ${BUILD_DURATION}s"
+            echo "- 最大内存使用: $(cat /proc/meminfo | grep MemAvailable | awk '{print $2}') KB"
           else
             echo "❌ 构建失败"
             exit 1

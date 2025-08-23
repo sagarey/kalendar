@@ -19,11 +19,11 @@ concurrency:
 jobs:
   emulator-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 45  # 合理的超时时间，有问题快速失败
     env:
-      # 优化 Gradle 性能 - 2核环境配置
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=false -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs="-Xmx2g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
-      # Android 相关环境变量
+      # 优化 Gradle 性能 - 公开项目高性能配置
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dorg.gradle.jvmargs="-Xmx5g -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseFastUnorderedTimeStamps"
+      # Android 相关环境变量 - 最新配置
       ANDROID_COMPILE_SDK: 34
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
@@ -60,6 +60,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Pre-download dependencies
+        timeout-minutes: 10  # 依赖下载超时控制
         run: |
           echo "📥 下载依赖..."
           ./gradlew dependencies --no-daemon --stacktrace
@@ -122,10 +123,10 @@ jobs:
           api-level: ${{ env.API_LEVEL }}
           target: google_apis
           arch: x86_64
-          profile: Nexus 6
+          profile: pixel_6  # 使用更现代的设备配置
           avd-name: test-device-api${{ env.API_LEVEL }}-x86_64
           force-avd-creation: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 1024 -smp 1 -accel kvm -netdelay none -netspeed full
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 3072 -smp 2 -accel kvm -netdelay none -netspeed full -partition-size 6144 -wipe-data
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
@@ -177,11 +178,15 @@ jobs:
           path: |
             app/build/intermediates
             app/build/tmp
-          key: ${{ runner.os }}-build-${{ github.sha }}
+            app/build/generated
+            build/kotlin
+            .gradle/kotlin-dsl
+          key: ${{ runner.os }}-build-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/*.kt', '**/*.java') }}
           restore-keys: |
             ${{ runner.os }}-build-
 
       - name: Build and Install APK
+        timeout-minutes: 15  # 构建超时控制
         run: |
           echo "🔨 构建 APK..."
           BUILD_START_TIME=$(date +%s)
