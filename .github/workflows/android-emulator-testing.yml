@@ -43,24 +43,6 @@ jobs:
           fetch-depth: 1
 
       # ============================================
-      # 缓存恢复
-      # ============================================
-
-      - name: Restore SDK Cache
-        id: restore-sdk-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.ANDROID_HOME }}
-          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-v11
-
-      - name: Restore AVD Cache
-        id: restore-avd-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
-
-      # ============================================
       # 阶段2: 基础环境设置
       # ============================================
 
@@ -80,7 +62,25 @@ jobs:
           cache-read-only: false
 
       # ============================================
-      # 阶段3: Android SDK 设置 (基于缓存优化)
+      # 阶段3: 缓存恢复
+      # ============================================
+
+      - name: Restore SDK Cache
+        id: restore-sdk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.ANDROID_HOME }}
+          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-v11
+
+      - name: Restore AVD Cache
+        id: restore-avd-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/avd
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
+
+      # ============================================
+      # 阶段4: Android SDK 设置 (基于缓存优化)
       # ============================================
 
       - name: Setup SDK
@@ -100,7 +100,7 @@ jobs:
           key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-v11
 
       # ============================================
-      # 阶段4: Android环境配置与AVD设置
+      # 阶段5: Android环境配置与AVD设置
       # ============================================
 
       - name: Setup AVD
@@ -165,7 +165,7 @@ jobs:
           key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
 
       # ============================================
-      # 阶段5: APK 构建 (包含依赖下载)
+      # 阶段6: APK 构建 (包含依赖下载)
       # ============================================
 
       - name: Build APK
@@ -205,7 +205,7 @@ jobs:
           fi
 
       # ============================================
-      # 阶段6: 模拟器测试 + 截图
+      # 阶段7: 模拟器测试 + 截图
       # ============================================
 
       - name: Android Emulator Testing with Screenshots
