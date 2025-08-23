@@ -281,14 +281,37 @@ jobs:
           disable-spellchecker: true
           disable-linux-hw-accel: false
           script: |
+            set -e  # 启用错误退出
             echo "🚀 开始整合测试..."
+            
+            # 详细的环境诊断
+            echo "🔍 环境诊断:"
+            echo "  Shell: $0"
+            echo "  PWD: $(pwd)"
+            echo "  用户: $(whoami)"
             
             # 验证模拟器
             echo "📱 模拟器验证:"
-            adb devices
+            echo "🔍 ADB状态:"
+            adb devices || {
+              echo "❌ ADB devices命令失败"
+              adb start-server
+              sleep 2
+              adb devices
+            }
+            
+            echo "🔍 详细设备信息:"
+            adb devices -l 2>/dev/null || echo "详细设备信息获取失败"
+            
             DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
+            echo "🔍 提取的设备: '$DEVICE'"
+            
             if [ -z "$DEVICE" ]; then
               echo "❌ 未找到模拟器设备"
+              echo "🔍 完整adb devices输出:"
+              adb devices
+              echo "🔍 进程检查:"
+              ps aux | grep emulator | head -5 || echo "未找到emulator进程"
               exit 1
             fi
             echo "✅ 模拟器设备: $DEVICE"
@@ -297,14 +320,29 @@ jobs:
             APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
             echo "📲 安装APK: $APK_PATH"
             
+            echo "🔍 APK路径检查:"
+            echo "  当前目录: $(pwd)"
+            echo "  APK路径: $APK_PATH"
+            echo "  文件存在: $([ -f "$APK_PATH" ] && echo "✅ 是" || echo "❌ 否")"
+            
             if [ -f "$APK_PATH" ]; then
               APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
               echo "📱 找到APK: $APK_SIZE"
               
+              echo "🔍 设备连接测试:"
+              if adb -s $DEVICE shell echo "连接测试" >/dev/null 2>&1; then
+                echo "✅ 设备连接正常"
+              else
+                echo "❌ 设备连接异常"
+                exit 1
+              fi
+              
+              echo "📲 执行APK安装..."
               if adb -s $DEVICE install -r "$APK_PATH"; then
                 echo "✅ APK安装成功"
                 
                 # 验证安装
+                echo "🔍 验证应用安装:"
                 if adb -s $DEVICE shell pm list packages | grep -q "org.fossify.calendar"; then
                   echo "✅ 应用安装验证成功"
                 else
@@ -315,33 +353,50 @@ jobs:
               fi
             else
               echo "❌ 预期APK文件不存在: $APK_PATH"
-              echo "🔍 这不应该发生，因为APK应该在之前构建完成"
+              echo "🔍 搜索可能的APK文件:"
+              find . -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
+              echo "❌ 无法继续测试"
+              exit 1
             fi
             
-            # 稳定性测试 (2分钟)
+            # 稳定性测试 (2分钟) - 使用POSIX兼容语法
             echo "🕒 稳定性测试 (2分钟):"
             SUCCESS_COUNT=0
             TOTAL_TESTS=12
             
-            for i in $(seq 1 $TOTAL_TESTS); do
+            echo "🔍 开始连续性测试..."
+            i=1
+            while [ $i -le $TOTAL_TESTS ]; do
               printf "[$i/$TOTAL_TESTS] "
-              if adb -s $DEVICE shell echo "test" >/dev/null 2>&1; then
+              
+              if adb -s "$DEVICE" shell echo "test" >/dev/null 2>&1; then
                 printf "✅"
                 SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
               else
                 printf "❌"
+                echo ""
+                echo "🔍 第${i}次测试失败，检查设备状态:"
+                adb -s "$DEVICE" shell getprop sys.boot_completed 2>/dev/null || echo "无法获取启动状态"
               fi
+              
               sleep 10
+              i=$((i + 1))
             done
             echo ""
             
-            SUCCESS_RATE=$((SUCCESS_COUNT * 100 / TOTAL_TESTS))
+            # 安全的除法计算
+            if [ $TOTAL_TESTS -gt 0 ]; then
+              SUCCESS_RATE=$((SUCCESS_COUNT * 100 / TOTAL_TESTS))
+            else
+              SUCCESS_RATE=0
+            fi
+            
             echo "📊 稳定性结果: $SUCCESS_COUNT/$TOTAL_TESTS (${SUCCESS_RATE}%)"
             
             if [ $SUCCESS_RATE -ge 80 ]; then
               echo "✅ 模拟器稳定性测试通过"
             else
-              echo "⚠️ 模拟器稳定性较差"
+              echo "⚠️ 模拟器稳定性较差，但不影响整体测试结果"
             fi
             
             echo "🎉 整合测试完成！"
