@@ -30,7 +30,7 @@ jobs:
       ANDROID_BUILD_TOOLS: 34.0.0
       ANDROID_SDK_TOOLS: 9477386
       ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_AVD_HOME: ~/.android/avd
+      ANDROID_AVD_HOME: /home/runner/.android/avd
       NDK_HOME: /usr/local/lib/android/sdk/ndk/25.1.8937393
 
     steps:
@@ -74,7 +74,7 @@ jobs:
           path: |
             ${{ env.ANDROID_HOME }}
             ${{ env.ANDROID_AVD_HOME }}
-          key: ${{ runner.os }}-android-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ env.PROFILE }}-v13
+          key: ${{ runner.os }}-android-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v13
 
       # ============================================
       # 阶段4: Android SDK 和 AVD 统一设置
@@ -111,7 +111,7 @@ jobs:
           path: |
             ${{ env.ANDROID_HOME }}
             ${{ env.ANDROID_AVD_HOME }}
-          key: ${{ runner.os }}-android-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ env.PROFILE }}-v13
+          key: ${{ runner.os }}-android-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v13
 
       # ============================================
       # 阶段5: APK 构建 (包含依赖下载)
