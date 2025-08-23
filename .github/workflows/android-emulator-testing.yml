@@ -121,8 +121,16 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Setup Android SDK
+      - name: Setup SDK
+        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
+
+      - name: Save SDK Cache
+        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/sdk
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       # ============================================
       # 阶段2: 依赖下载和环境配置
@@ -162,7 +170,7 @@ jobs:
       # 阶段3: AVD环境准备 (基于缓存状态)
       # ============================================
 
-      - name: Prepare AVD Environment
+      - name: Setup AVD
         timeout-minutes: 6
         run: |
           echo "🔧 准备 AVD 环境..."
@@ -241,6 +249,13 @@ jobs:
             echo "❌ AVD验证失败"
             exit 1
           fi
+
+      - name: Save AVD Cache
+        if: steps.restore-avd-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/avd
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
 
 
 
@@ -344,42 +359,8 @@ jobs:
           fi
 
       # ============================================
-      # 缓存保存：为下次运行建立缓存
+      # 结果总结：缓存已在各Setup步骤后立即保存
       # ============================================
-
-      - name: Save Android SDK Cache
-        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
-
-      - name: Save AVD Cache
-        if: steps.restore-avd-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
-
-      - name: Cache Save Summary
-        if: always()
-        run: |
-          echo "💾 缓存保存总结:"
-          echo ""
-          echo "📊 保存状态:"
-          echo "  📱 SDK缓存: ${{ steps.restore-sdk-cache.outputs.cache-hit != 'true' && '💾 已保存新缓存' || '⚡ 跳过(已存在)' }}"
-          echo "  🎮 AVD缓存: ${{ steps.restore-avd-cache.outputs.cache-hit != 'true' && '💾 已保存新缓存' || '⚡ 跳过(已存在)' }}"
-          echo ""
-          echo "🚀 下次运行预期:"
-          if [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" != "true" ] && [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" != "true" ]; then
-            echo "  🎯 双缓存建立 → 下次运行将显著加速"
-          elif [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" != "true" ]; then
-            echo "  📱 SDK缓存建立 → 下次跳过SDK下载"
-          elif [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" != "true" ]; then
-            echo "  🎮 AVD缓存建立 → 下次跳过AVD配置"
-          else
-            echo "  ✅ 缓存已完整 → 性能已优化"
-          fi
 
       - name: Upload Test Results and Screenshots
         if: always()
