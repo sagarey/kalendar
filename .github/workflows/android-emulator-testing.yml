@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # 优化 Gradle 性能 - ubuntu-latest 4核心/16GB 内存配置
+      # 优化 Gradle 性能 - ubuntu-latest 4核心/16GB内存 配置
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
       # Android 相关环境变量 - 最新配置
       ANDROID_COMPILE_SDK: 34
@@ -34,8 +34,7 @@ jobs:
 
     steps:
       # ============================================
-      # 🚀 精简流程：构建APK → 启动模拟器 → 安装运行 → 截图
-      # 🔄 每次都重新创建，确保环境一致性
+      # 阶段1: 代码获取和缓存预检
       # ============================================
       
       - name: Checkout
@@ -43,20 +42,9 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Environment
-        run: |
-          echo "🚀 配置构建和模拟器环境..."
-          
-          # 启用 KVM 硬件加速
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          
-          # 设置图形环境
-          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-          
-          echo "✅ KVM: $( [ -r /dev/kvm ] && echo '已启用' || echo '软件模拟' )"
+      # ============================================
+      # 阶段2: 环境设置 (基于缓存状态优化)
+      # ============================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -64,70 +52,168 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Gradle & Android SDK
-        run: |
-          chmod +x gradlew
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle Cache
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
 
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Setup SDK
+        uses: android-actions/setup-android@v3
+
+      # ============================================
+      # 阶段2: 依赖下载和环境配置
+      # ============================================
+
+      - name: Pre-download dependencies
+        timeout-minutes: 5
+        run: |
+          echo "📥 下载项目依赖..."
+          echo "💾 系统资源: $(free -h | grep '^Mem:' | awk '{print $2}') 内存 | $(nproc) CPU核心"
+          ./gradlew dependencies --stacktrace --no-daemon
+          echo "✅ 依赖下载完成"
+
+      - name: Setup Android Environment
+        run: |
+          echo "🚀 配置 Android 运行环境..."
+          
+          # 启用 KVM 硬件加速
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules > /dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          
+          # 检查 KVM 支持
+          if [ -r /dev/kvm ]; then
+            echo "✅ KVM 硬件加速已启用"
+          else
+            echo "⚠️ KVM 硬件加速不可用，将使用软件模拟"
+          fi
+          
+          # 设置图形环境
+          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          
+          echo "✅ Android 环境配置完成"
+
+      # ============================================
+      # 阶段3: AVD环境准备 (基于缓存状态)
+      # ============================================
+
       - name: Setup AVD
         timeout-minutes: 6
         run: |
-          echo "🔨 创建 AVD..."
-          AVD_NAME="test-api${{ env.API_LEVEL }}"
+          echo "🔧 准备 AVD 环境..."
           
-          # 安装系统镜像并创建AVD
-          SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
-          echo "y" | sdkmanager "$SYSTEM_IMAGE"
-          echo "no" | avdmanager create avd --force --name "$AVD_NAME" \
-            --abi "default/x86_64" --package "$SYSTEM_IMAGE" --device "Nexus 6"
-          
-          # 查找 config.ini 文件位置
-          echo "🔍 查找 config.ini 文件位置..."
-          echo "预期位置: $HOME/.android/avd/${AVD_NAME}.avd/config.ini"
-          echo "AVD 目录结构:"
-          ls -la "$HOME/.android/avd/" 2>/dev/null || echo "AVD 目录不存在"
-          if [ -d "$HOME/.android/avd/${AVD_NAME}.avd" ]; then
-            echo "AVD 配置目录内容:"
-            ls -la "$HOME/.android/avd/${AVD_NAME}.avd/"
+          # 如果缓存无效或未命中，执行完整创建流程
+          if [ ! -f /tmp/cache_valid ] || [ "$(cat /tmp/cache_valid 2>/dev/null)" = "false" ]; then
+            echo "🔨 执行完整AVD创建流程..."
+            
+            # 检查并安装必要的system-images
+            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
+            echo "📦 检查系统镜像: $SYSTEM_IMAGE"
+            
+            if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
+              echo "📥 下载系统镜像..."
+              echo "y" | sdkmanager "$SYSTEM_IMAGE"
+            else
+              echo "✅ 系统镜像已存在"
+            fi
+            
+            # 创建AVD
+            AVD_NAME="test-api${{ env.API_LEVEL }}"
+            echo "📱 创建AVD: $AVD_NAME"
+            echo "no" | avdmanager create avd \
+              --force \
+              --name "$AVD_NAME" \
+              --abi "default/x86_64" \
+              --package "$SYSTEM_IMAGE" \
+              --device "Nexus 6"
+            
+            # 优化AVD配置
+            AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
+            if [ -f "$AVD_CONFIG" ]; then
+              echo "⚙️ 应用性能优化配置..."
+              echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
+              echo "hw.ramSize=2048" >> "$AVD_CONFIG"
+              echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
+              echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
+              echo "✅ AVD性能优化完成"
+              # 输出 AVD_CONFIG 文件内容
+              echo "AVD_CONFIG 文件内容:"
+              cat "$AVD_CONFIG"
+            fi
           fi
-          echo "全局查找 config.ini 文件:"
-          find "$HOME/.android" -name "config.ini" 2>/dev/null || echo "未找到 config.ini 文件"
           
-          # 优化配置
-          AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
-          echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
-          echo "hw.ramSize=2048" >> "$AVD_CONFIG"
-          echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-          echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-          echo "✅ AVD 创建完成: $AVD_NAME"
+          # 最终验证
+          echo "🔍 最终AVD验证:"
+          AVD_NAME="test-api${{ env.API_LEVEL }}"
+          if avdmanager list avd | grep -q "$AVD_NAME"; then
+            echo "✅ AVD准备完成: $AVD_NAME"
+          else
+            echo "❌ AVD验证失败"
+            exit 1
+          fi
+
+      # ============================================
+      # 阶段4: APK 构建
+      # ============================================
 
       - name: Build APK
         timeout-minutes: 10
         run: |
           echo "🔨 构建 APK..."
-          APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
           
-          # 清理并构建
-          ./gradlew clean assembleFossDebug --stacktrace --no-daemon
+          BUILD_START_TIME=$(date +%s)
           
-          # 验证APK
-          if [ -f "$APK_PATH" ]; then
-            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-            echo "✅ APK构建成功: $APK_SIZE"
+          # 构建环境检查
+          echo "🔍 构建环境:"
+          echo "  内存可用: $(free -h | grep '^Mem:' | awk '{print $4}')"
+          echo "  磁盘可用: $(df -h . | tail -1 | awk '{print $4}')"
+          echo "  Java版本: $(java -version 2>&1 | head -1)"
+          
+          # 清理构建环境和旧APK文件
+          echo "🧹 清理构建环境..."
+          ./gradlew clean --stacktrace
+          
+          # 清理可能残留的APK文件
+          echo "🗑️ 清理旧APK文件..."
+          rm -f app/build/outputs/apk/foss/debug/*.apk || echo "ℹ️ 无旧APK文件需要清理"
+          
+          # 执行构建
+          echo "🔨 开始APK构建..."
+          if ./gradlew assembleFossDebug --stacktrace; then
+            BUILD_END_TIME=$(date +%s)
+            BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
+            echo "✅ APK构建成功 (${BUILD_DURATION}秒)"
+            
+            # 验证固定的APK文件
+            APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
+            echo "🔍 验证APK文件: $APK_PATH"
+            
+            if [ -f "$APK_PATH" ]; then
+              APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+              echo "✅ APK构建成功: $APK_PATH ($APK_SIZE)"
+            else
+              echo "❌ 预期APK文件未找到: $APK_PATH"
+              echo "🔍 检查构建输出:"
+              find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
+              ls -la app/build/outputs/apk/foss/debug/ 2>/dev/null || echo "debug目录不存在"
+              exit 1
+            fi
           else
             echo "❌ APK构建失败"
             exit 1
           fi
 
-      - name: 启动模拟器并测试应用
+      # ============================================
+      # 阶段3: 模拟器测试 + 截图
+      # ============================================
+
+      - name: Android Emulator Testing with Screenshots
         timeout-minutes: 15
+        continue-on-error: false  # 主测试步骤必须成功
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
@@ -140,23 +226,20 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: |
-            echo "📲 安装并运行应用..."
-            adb uninstall org.fossify.calendar.debug || true
-            adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
-            adb shell pm list packages | grep org.fossify.calendar.debug
-            sleep 5
-            echo "📸 截图..."
-            adb shell screencap -p /sdcard/screenshot.png
-            adb pull /sdcard/screenshot.png calendar_running_screenshot.png
-            echo "✅ 测试完成"
+          script: adb uninstall org.fossify.calendar.debug || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar.debug && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
 
-      - name: 上传测试结果
-        if: always()
+
+      # ============================================
+      # 结果总结：缓存已在各Setup步骤后立即保存
+      # ============================================
+
+      - name: Upload Test Results and Screenshots
         uses: actions/upload-artifact@v4
         with:
           name: android-test-results-${{ github.run_number }}
           path: |
             app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
             calendar_running_screenshot.png
+            build/reports/**/*
+            app/build/reports/**/*
           retention-days: 7
