@@ -62,13 +62,10 @@ jobs:
           profile: pixel_6
           # Ubuntu 兼容性优化配置 - 8GB内存 + 中文系统
           emulator-options: >-
-            -no-snapshot -wipe-data
             -no-window -no-snapshot -no-audio -no-boot-anim 
             -gpu swiftshader_indirect -netdelay none -netspeed full 
             -cores 4 -memory 8192 
             -camera-back none -camera-front none
-            -prop emu.locale=zh-CN -prop emu.language=zh -prop emu.country=CN
-            -prop persist.sys.locale=zh-CN -prop persist.sys.language=zh -prop persist.sys.country=CN
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
@@ -77,24 +74,15 @@ jobs:
             # 等待设备启动完成
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
-            # 强制设置中文环境
-            # adb shell settings put system system_locales zh-CN
-            # adb reboot
-            # sleep 10
-            # adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-            
             # 安装应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
 
             # 启动应用
-            adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1
-            # # 方法2: 直接启动主Activity
-            # adb shell am start -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity || \
-            # # 方法3: 通过Intent启动
-            # adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER org.fossify.calendar.debug || \
-            # # 方案4: 查询启动Activity然后启动
+            # adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1
+            adb shell am start -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
+            # adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER org.fossify.calendar.debug
             # adb shell cmd package resolve-activity --brief org.fossify.calendar.debug | head -1
-            sleep 5
+            sleep 3
             
             # 截图
             adb shell screencap -p > calendar_screenshot.png
