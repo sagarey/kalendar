@@ -34,13 +34,62 @@ jobs:
 
     steps:
       # ============================================
-      # 阶段1: 基础环境和缓存恢复
+      # 阶段1: 代码获取和缓存预检
       # ============================================
       
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
+
+      # 提前进行所有缓存操作，在环境设置之前
+      - name: Cache Android SDK
+        id: cache-android-sdk
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/sdk
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
+          restore-keys: |
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v7
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
+            ${{ runner.os }}-android-sdk-
+
+      - name: Cache AVD
+        id: cache-avd
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/avd
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
+          restore-keys: |
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v6
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-
+            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
+
+      - name: Cache Status Analysis
+        run: |
+          echo "🔍 缓存状态分析 (环境设置前):"
+          echo ""
+          echo "📊 缓存命中情况:"
+          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
+          echo "  🎮 AVD配置: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
+          echo "  🏗️ Gradle: 将在setup-gradle时自动管理"
+          echo ""
+          echo "⚡ 性能预期:"
+          if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ] && [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
+            echo "  🚀 双缓存命中 - 最佳性能，大幅跳过下载和配置"
+          elif [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ]; then
+            echo "  ⚡ SDK缓存命中 - 跳过SDK下载，仅需配置AVD"
+          elif [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
+            echo "  🔧 AVD缓存命中 - 跳过AVD配置，仅需下载SDK"
+          else
+            echo "  📥 首次运行 - 需要完整下载和配置"
+          fi
+          echo ""
+          echo "🎯 执行策略: 根据缓存状态优化后续步骤"
+
+      # ============================================
+      # 阶段2: 环境设置 (基于缓存状态优化)
+      # ============================================
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -56,38 +105,8 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # 优先恢复 Android SDK 缓存 (纯SDK，不包含AVD)
-      - name: Cache Android SDK
-        id: cache-android-sdk
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
-          restore-keys: |
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v7
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
-            ${{ runner.os }}-android-sdk-
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
-      - name: Initial Cache Status Check
-        run: |
-          echo "🔍 初始缓存状态检查:"
-          echo "  🏗️ Gradle缓存: 由 setup-gradle 自动管理"
-          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
-          echo "  🎮 AVD缓存: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
-          echo ""
-          if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ]; then
-            echo "🚀 SDK缓存命中，跳过大量下载！"
-          else
-            echo "📥 SDK缓存未命中，将重新下载"
-          fi
-          if [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
-            echo "⚡ AVD缓存命中，跳过配置创建！"
-          else
-            echo "🔨 AVD缓存未命中，将重新配置"
-          fi
 
       # ============================================
       # 阶段2: 依赖下载和环境配置
@@ -124,19 +143,8 @@ jobs:
           echo "✅ Android 环境配置完成"
 
       # ============================================
-      # 阶段3: AVD 准备、缓存和快照生成
+      # 阶段3: AVD环境准备 (基于缓存状态)
       # ============================================
-      
-      - name: Cache AVD
-        id: cache-avd
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
-          restore-keys: |
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v6
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-
-            ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
 
       - name: Prepare AVD Environment
         timeout-minutes: 6
