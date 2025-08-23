@@ -329,7 +329,7 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: adb uninstall org.fossify.calendar || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
+          script: adb uninstall org.fossify.calendar.debug || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar.debug && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
 
       # ============================================
       # 阶段6: 结果总结和清理
