@@ -74,6 +74,16 @@ jobs:
           echo "  🎮 AVD配置: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
           echo "  🏗️ Gradle: 将在setup-gradle时自动管理"
           echo ""
+          echo "🔍 详细缓存信息:"
+          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
+          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
+          echo "  SDK缓存状态: ${{ steps.cache-android-sdk.outputs.cache-hit }}"
+          echo "  AVD缓存状态: ${{ steps.cache-avd.outputs.cache-hit }}"
+          echo ""
+          echo "📁 文件系统检查:"
+          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
+          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo '✅ 存在' || echo '❌ 不存在')"
+          echo ""
           echo "⚡ 性能预期:"
           if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ] && [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
             echo "  🚀 双缓存命中 - 最佳性能，大幅跳过下载和配置"
@@ -84,8 +94,6 @@ jobs:
           else
             echo "  📥 首次运行 - 需要完整下载和配置"
           fi
-          echo ""
-          echo "🎯 执行策略: 根据缓存状态优化后续步骤"
 
       # ============================================
       # 阶段2: 环境设置 (基于缓存状态优化)
@@ -150,29 +158,53 @@ jobs:
         timeout-minutes: 6
         run: |
           echo "🔧 准备 AVD 环境..."
+          echo "🔍 AVD缓存状态: ${{ steps.cache-avd.outputs.cache-hit }}"
           
-          # 检查并安装必要的system-images
-          SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
-          echo "📦 检查系统镜像: $SYSTEM_IMAGE"
-          
-          # 安装系统镜像 (如果不存在)
-          if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
-            echo "📥 下载系统镜像..."
-            echo "y" | sdkmanager "$SYSTEM_IMAGE"
+          # 基于缓存状态决定执行策略
+          if [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
+            echo "⚡ AVD缓存命中，验证现有配置..."
+            AVD_NAME="test-api${{ env.API_LEVEL }}"
+            
+            if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
+              echo "✅ AVD配置文件存在"
+              AVD_SIZE=$(du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo "unknown")
+              echo "💾 AVD缓存大小: $AVD_SIZE"
+              
+              # 验证AVD可用性
+              if avdmanager list avd | grep -q "$AVD_NAME"; then
+                echo "✅ AVD缓存验证成功: $AVD_NAME"
+                echo "🚀 跳过AVD创建，直接使用缓存"
+              else
+                echo "⚠️ AVD缓存损坏，重新创建..."
+                echo "false" > /tmp/cache_valid
+              fi
+            else
+              echo "⚠️ AVD配置文件缺失，重新创建..."
+              echo "false" > /tmp/cache_valid
+            fi
           else
-            echo "✅ 系统镜像已存在"
+            echo "📥 AVD缓存未命中，开始创建..."
+            echo "false" > /tmp/cache_valid
           fi
           
-          # 检查现有AVD状态
-          AVD_NAME="test-api${{ env.API_LEVEL }}"
-          echo "📱 目标AVD: $AVD_NAME"
-          
-          if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
-            echo "✅ 发现现有AVD缓存"
-            AVD_SIZE=$(du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo "unknown")
-            echo "💾 AVD缓存大小: $AVD_SIZE"
-          else
-            echo "🔨 创建新的AVD..."
+          # 如果缓存无效或未命中，执行完整创建流程
+          if [ ! -f /tmp/cache_valid ] || [ "$(cat /tmp/cache_valid 2>/dev/null)" = "false" ]; then
+            echo "🔨 执行完整AVD创建流程..."
+            
+            # 检查并安装必要的system-images
+            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
+            echo "📦 检查系统镜像: $SYSTEM_IMAGE"
+            
+            if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
+              echo "📥 下载系统镜像..."
+              echo "y" | sdkmanager "$SYSTEM_IMAGE"
+            else
+              echo "✅ 系统镜像已存在"
+            fi
+            
+            # 创建AVD
+            AVD_NAME="test-api${{ env.API_LEVEL }}"
+            echo "📱 创建AVD: $AVD_NAME"
             echo "no" | avdmanager create avd \
               --force \
               --name "$AVD_NAME" \
@@ -192,12 +224,13 @@ jobs:
             fi
           fi
           
-          # 验证AVD状态
-          echo "🔍 AVD验证:"
+          # 最终验证
+          echo "🔍 最终AVD验证:"
+          AVD_NAME="test-api${{ env.API_LEVEL }}"
           if avdmanager list avd | grep -q "$AVD_NAME"; then
             echo "✅ AVD准备完成: $AVD_NAME"
           else
-            echo "❌ AVD创建失败"
+            echo "❌ AVD验证失败"
             exit 1
           fi
 
