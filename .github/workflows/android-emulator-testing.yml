@@ -70,7 +70,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.ANDROID_HOME }}
-          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-v11
+          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v12
 
       - name: Restore AVD Cache
         id: restore-avd-cache
@@ -99,7 +99,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.ANDROID_HOME }}
-          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-v11
+          key: ${{ runner.os }}-sdk-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v12
 
       # ============================================
       # 阶段5: Android环境配置与AVD设置
