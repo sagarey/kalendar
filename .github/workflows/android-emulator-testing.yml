@@ -134,15 +134,15 @@ jobs:
 
 
       - name: Start Android Emulator
-        timeout-minutes: 12  # 缩短超时时间，快速失败
+        timeout-minutes: 10  # 缩短超时时间，快速失败
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
-          target: default  # 使用默认目标，更稳定
+          target: default
           arch: x86_64
           profile: Nexus 6
           avd-name: test-api${{ env.API_LEVEL }}
-          force-avd-creation: false  # 尝试复用已有 AVD
+          force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
           disable-animations: true
           disable-spellchecker: true
@@ -150,103 +150,64 @@ jobs:
           working-directory: ./
           script: |
             echo "📱 启动模拟器..."
+            sleep 15
             
-            # 等待模拟器进程启动
-            echo "⏳ 等待模拟器进程启动..."
-            sleep 10
-            
-            # 检查模拟器状态
             echo "🔍 检查模拟器状态..."
             adb devices
             
-            # 等待设备连接，使用 while 循环替代 for 循环
             echo "⏳ 等待 ADB 连接..."
-            ADB_CONNECTED=false
             attempt=1
-            max_attempts=8
-            
-            while [ $attempt -le $max_attempts ]; do
-              echo "🔍 连接尝试 $attempt/$max_attempts..."
-              adb devices
+            while [ $attempt -le 10 ]; do
+              echo "连接尝试 $attempt/10..."
               if adb devices | grep -q "emulator.*device"; then
-                echo "✅ ADB 已连接 ($attempt/$max_attempts)"
-                ADB_CONNECTED=true
+                echo "✅ ADB 已连接"
                 break
-              else
-                echo "⏳ 等待连接... ($attempt/$max_attempts)"
-                if [ $attempt -eq 4 ]; then
-                  echo "🔄 中途重启 ADB 服务..."
-                  adb kill-server 2>/dev/null || true
-                  sleep 2
-                  adb start-server 2>/dev/null || true
-                  sleep 3
-                fi
-                sleep 5
               fi
+              
+              if [ $attempt -eq 5 ]; then
+                echo "重启 ADB 服务..."
+                adb kill-server 2>/dev/null || true
+                sleep 2
+                adb start-server 2>/dev/null || true
+                sleep 3
+              fi
+              
+              sleep 5
               attempt=$((attempt + 1))
             done
             
-            if [ "$ADB_CONNECTED" = false ]; then
-              echo "❌ ADB 连接最终失败"
-              echo "📊 最终状态检查:"
-              adb devices
-              echo "🔧 最后尝试重启 ADB..."
-              adb kill-server 2>/dev/null || true
-              sleep 2
-              adb start-server 2>/dev/null || true
-              sleep 3
-              adb devices
-              exit 1
-            fi
-            
-            # 获取设备名称
             DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
             if [ -z "$DEVICE" ]; then
               echo "❌ 未找到模拟器设备"
-              echo "当前设备列表:"
               adb devices
               exit 1
             fi
-            echo "🎯 连接到设备: $DEVICE"
+            echo "📱 设备: $DEVICE"
             
-            # 等待系统完全启动
             echo "⏳ 等待系统启动..."
-            BOOT_CHECK_COUNT=0
-            while [ $BOOT_CHECK_COUNT -lt 60 ]; do
-              BOOT_STATUS=$(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo "")
-              if [ "$BOOT_STATUS" = "1" ]; then
+            check_count=0
+            while [ $check_count -lt 40 ]; do
+              boot_status=$(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
+              if [ "$boot_status" = "1" ]; then
                 echo "✅ 系统启动完成"
                 break
-              else
-                echo "⏳ 启动检查 $((BOOT_CHECK_COUNT + 1))/60..."
-                sleep 3
-                BOOT_CHECK_COUNT=$((BOOT_CHECK_COUNT + 1))
               fi
+              echo "启动检查 $((check_count + 1))/40..."
+              sleep 5
+              check_count=$((check_count + 1))
             done
             
-            if [ $BOOT_CHECK_COUNT -eq 60 ]; then
+            if [ $check_count -eq 40 ]; then
               echo "❌ 系统启动超时"
-              echo "设备状态:"
-              adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo "无法获取启动状态"
               exit 1
             fi
             
-            # 优化性能设置
-            echo "⚡ 优化性能..."
-            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || echo "设置动画缩放失败"
-            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || echo "设置过渡动画失败"
-            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || echo "设置动画时长失败"
+            echo "⚡ 优化性能设置..."
+            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
             
-            # 验证模拟器状态
-            ANDROID_VERSION=$(adb -s $DEVICE shell getprop ro.build.version.release 2>/dev/null || echo "Unknown")
-            ANDROID_API=$(adb -s $DEVICE shell getprop ro.build.version.sdk 2>/dev/null || echo "Unknown")
-            echo "✅ 模拟器就绪 - Android $ANDROID_VERSION (API $ANDROID_API)"
-            
-            # 最终状态验证
-            echo "📊 最终状态验证:"
-            echo "  设备: $DEVICE"
-            echo "  ADB 状态: $(adb get-state 2>/dev/null || echo 'unknown')"
-            echo "  启动完成: $(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo 'unknown')"
+            echo "✅ 模拟器准备完成"
 
       - name: Emulator Diagnostics
         if: failure()
