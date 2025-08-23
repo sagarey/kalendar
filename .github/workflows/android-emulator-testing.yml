@@ -87,14 +87,13 @@ jobs:
 
       - name: Install Android SDK Components
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-${{ env.API_LEVEL }}
-            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
-            system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}
-            emulator
+        run: |
+          echo "y" | sdkmanager \
+            "platform-tools" \
+            "platforms;android-${{ env.API_LEVEL }}" \
+            "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" \
+            "system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}" \
+            "emulator"
 
       - name: Setup AVD
         if: steps.restore-android-cache.outputs.cache-hit != 'true'
