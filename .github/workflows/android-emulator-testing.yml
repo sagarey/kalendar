@@ -57,16 +57,16 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ env.API_LEVEL }}
-          target: google_apis
+          target: default
           arch: x86_64
-          profile: pixel_6_pro
+          profile: pixel_6
           # 极致性能配置 - 8GB内存 + 优化启动参数
           emulator-options: >-
             -no-window -no-snapshot -no-audio -no-boot-anim 
             -gpu host -accel auto -netdelay none -netspeed full 
             -cores 4 -memory 8192 -cache-size 1024 
             -camera-back none -camera-front none 
-            -skin 1080x2400
+            -skin 1080x2340
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
