@@ -34,20 +34,14 @@ jobs:
 
     steps:
       # ============================================
-      # 🚀 核心流程：构建APK → 启动模拟器 → 安装运行 → 截图
+      # 🚀 精简流程：构建APK → 启动模拟器 → 安装运行 → 截图
+      # 🔄 每次都重新创建，确保环境一致性
       # ============================================
       
       - name: Checkout
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
-
-      - name: Restore AVD Cache
-        id: restore-avd-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v12
 
       - name: Setup Environment
         run: |
@@ -85,37 +79,22 @@ jobs:
       - name: Setup AVD
         timeout-minutes: 6
         run: |
+          echo "🔨 创建 AVD..."
           AVD_NAME="test-api${{ env.API_LEVEL }}"
           
-          if [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ] && \
-             [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ] && \
-             avdmanager list avd | grep -q "$AVD_NAME"; then
-            echo "✅ 使用缓存的 AVD: $AVD_NAME"
-          else
-            echo "🔨 创建新的 AVD: $AVD_NAME"
-            
-            # 安装系统镜像并创建AVD
-            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
-            echo "y" | sdkmanager "$SYSTEM_IMAGE"
-            echo "no" | avdmanager create avd --force --name "$AVD_NAME" \
-              --abi "default/x86_64" --package "$SYSTEM_IMAGE" --device "Nexus 6"
-            
-            # 优化配置
-            AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
-            echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
-            echo "hw.ramSize=2048" >> "$AVD_CONFIG"
-            echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-            echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-          fi
-
-      - name: Save AVD Cache
-        if: steps.restore-avd-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v12
-
-
+          # 安装系统镜像并创建AVD
+          SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
+          echo "y" | sdkmanager "$SYSTEM_IMAGE"
+          echo "no" | avdmanager create avd --force --name "$AVD_NAME" \
+            --abi "default/x86_64" --package "$SYSTEM_IMAGE" --device "Nexus 6"
+          
+          # 优化配置
+          AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
+          echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
+          echo "hw.ramSize=2048" >> "$AVD_CONFIG"
+          echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
+          echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
+          echo "✅ AVD 创建完成: $AVD_NAME"
 
       - name: Build APK
         timeout-minutes: 10
