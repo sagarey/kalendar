@@ -89,13 +89,29 @@ jobs:
             adb shell setprop persist.sys.language zh
             adb shell setprop persist.sys.country CN
             adb shell start
-            sleep 3
+            sleep 8
             
             # 安装应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
             
-            # 通过 monkey 启动应用
-            adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1
+
+            echo "🔍 查找启动器 Activity..."
+            adb shell pm dump org.fossify.calendar.debug | grep -A 5 -B 5 "android.intent.action.MAIN"
+            
+            # 方法1: 尝试 monkey 启动
+            echo "🚀 尝试 monkey 启动..."
+            if adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1; then
+              echo "✅ Monkey 启动成功"
+            else
+              echo "❌ Monkey 启动失败，尝试直接启动..."
+              # 方法2: 直接启动主Activity
+              adb shell am start -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity || \
+              # 方法3: 通过Intent启动
+              adb shell am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER org.fossify.calendar.debug || \
+              # 方案4: 查询启动Activity然后启动
+              adb shell cmd package resolve-activity --brief org.fossify.calendar.debug | head -1
+            fi
+            
             sleep 8
             
             # 截图
