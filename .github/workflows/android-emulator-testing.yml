@@ -79,7 +79,7 @@ jobs:
             # 强制设置中文环境 (确保生效)
             adb shell settings put system system_locales zh-CN
             adb shell settings put global device_locales zh-CN
-            adb shell setprop persist.sys.locale zh-CN
+            # adb shell setprop persist.sys.locale zh-CN
             adb shell setprop persist.sys.language zh
             adb shell setprop persist.sys.country CN
             adb shell setprop ro.product.locale zh-CN
