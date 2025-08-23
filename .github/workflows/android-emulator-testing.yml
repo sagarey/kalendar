@@ -230,7 +230,6 @@ jobs:
       # ============================================
 
       - name: Upload Test Results and Screenshots
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-test-results-${{ github.run_number }}
