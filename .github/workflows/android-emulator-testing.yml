@@ -140,25 +140,19 @@ jobs:
           
           # 步骤1: 验证项目配置
           echo "📋 步骤1: 验证项目配置"
-          if ./gradlew help --stacktrace; then
-            echo "✅ 项目配置验证成功"
-          else
-            echo "❌ 项目配置验证失败"
-            exit 1
-          fi
+          echo "ℹ️ 跳过详细配置验证，依赖之前的成功步骤"
           
-          # 步骤2: 下载和验证依赖
+          # 步骤2: 验证依赖 (简化版)
           echo "📋 步骤2: 验证依赖"
-          if ./gradlew dependencies --configuration debugCompileClasspath --stacktrace | head -20; then
-            echo "✅ 依赖验证成功"
-          else
-            echo "❌ 依赖验证失败"
-            exit 1
-          fi
+          echo "ℹ️ 跳过详细依赖验证，直接进入构建阶段"
           
           # 步骤3: 构建APK
           echo "📋 步骤3: 构建APK"
-          if ./gradlew assembleFossDebug --stacktrace --no-daemon --info; then
+          echo "🔍 构建环境检查:"
+          echo "  内存可用: $(free -h | grep '^Mem:' | awk '{print $4}')"
+          echo "  磁盘可用: $(df -h . | tail -1 | awk '{print $4}')"
+          
+          if ./gradlew assembleFossDebug --stacktrace; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ APK构建成功 (${BUILD_DURATION}s)"
@@ -170,10 +164,18 @@ jobs:
               echo "✅ APK文件生成: $APK_PATH ($APK_SIZE)"
             else
               echo "❌ APK文件未生成"
+              echo "🔍 构建输出检查:"
+              find app/build -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
+              ls -la app/build/outputs/ 2>/dev/null || echo "outputs目录不存在"
               exit 1
             fi
           else
             echo "❌ APK构建失败"
+            echo "🔍 失败诊断:"
+            echo "  Gradle状态: $(./gradlew --status 2>/dev/null | head -3 || echo '无法获取')"
+            echo "  Java进程: $(ps aux | grep java | wc -l) 个"
+            echo "  磁盘使用: $(df -h . | tail -1)"
+            echo "  构建目录: $(ls -la app/build 2>/dev/null | wc -l) 个文件"
             exit 1
           fi
 
