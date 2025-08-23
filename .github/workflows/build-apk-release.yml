@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build-and-release:
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
     timeout-minutes: 40  # 4核心优化后，缩短超时时间
     permissions:
       contents: write
