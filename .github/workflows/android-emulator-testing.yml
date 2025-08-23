@@ -66,6 +66,7 @@ jobs:
             -gpu swiftshader_indirect -netdelay none -netspeed full 
             -cores 4 -memory 8192 
             -camera-back none -camera-front none
+            -no-snapshot -wipe-data
             -prop emu.locale=zh-CN -prop emu.language=zh -prop emu.country=CN
             -prop persist.sys.locale=zh-CN -prop persist.sys.language=zh -prop persist.sys.country=CN
           disable-animations: true
@@ -77,7 +78,17 @@ jobs:
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
             # 强制设置中文环境 (确保生效)
-            adb shell "settings put system system_locales zh-CN; settings put global device_locales zh-CN; setprop persist.sys.locale zh-CN; setprop persist.sys.language zh; setprop persist.sys.country CN; setprop ro.product.locale zh-CN";
+            adb shell settings put system system_locales zh-CN
+            adb shell settings put global device_locales zh-CN
+            adb reboot
+            adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+
+            adb root
+            adb shell stop
+            adb shell setprop persist.sys.locale zh-CN
+            adb shell setprop persist.sys.language zh
+            adb shell setprop persist.sys.country CN
+            adb shell start
             sleep 3
             
             # 安装应用
