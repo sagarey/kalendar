@@ -15,7 +15,7 @@ env:
   PROFILE: Nexus 6
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -43,68 +43,52 @@ jobs:
           fetch-depth: 1
 
       # ============================================
-      # 缓存策略决策：检查 → 还原 or 初始化
+      # 缓存策略：仅保留 AVD 缓存，SDK 每次重新安装
       # ============================================
 
-      - name: Check Cache Availability
+      - name: Check AVD Cache Availability
         id: check-cache
         run: |
-          echo "🔍 检查缓存可用性..."
+          echo "🔍 检查 AVD 缓存可用性..."
           echo ""
-          echo "📋 缓存键信息 (v11统一版本):"
-          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11"
-          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11"
+          echo "📋 缓存键信息 (v12 - 仅AVD版本):"
+          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v12"
           echo ""
           echo "📁 初始本地文件检查:"
-          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
           echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo '✅ 存在' || echo '❌ 不存在')"
           echo ""
-          echo "🎯 接下来将尝试缓存恢复..."
-          echo "⚠️  注意: 如果缓存未命中，将进行完整的SDK/AVD初始化"
-
-      - name: Restore SDK Cache
-        id: restore-sdk-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
+          echo "🎯 策略: SDK 始终重新安装，AVD 使用缓存"
 
       - name: Restore AVD Cache
         id: restore-avd-cache
         uses: actions/cache/restore@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v12
 
       - name: Cache Strategy Decision
         run: |
           echo "🎯 缓存策略决策："
           echo ""
           echo "📊 缓存恢复结果:"
-          echo "  📱 Android SDK: ${{ steps.restore-sdk-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
+          echo "  📱 Android SDK: ❌ 不使用缓存 (每次重新安装)"
           echo "  🎮 AVD配置: ${{ steps.restore-avd-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
           echo ""
           echo "📁 恢复后文件检查:"
-          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && du -sh "$HOME/.android/sdk" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
           echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
           echo ""
-          echo "🔄 执行策略分流:"
-          if [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "  🚀 路径A: 双缓存恢复成功 → 跳过初始化，直接验证"
-          elif [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "  ⚡ 路径B: SDK恢复成功 → 跳过SDK初始化，仅初始化AVD"
-          elif [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "  🔧 路径C: AVD恢复成功 → 跳过AVD初始化，仅初始化SDK"
+          echo "🔄 执行策略:"
+          if [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "  ⚡ AVD恢复成功 → 跳过AVD初始化，重新安装SDK"
           else
-            echo "  📥 路径D: 全新初始化 → 完整的SDK和AVD安装配置"
+            echo "  📥 全新初始化 → 安装SDK和创建AVD"
           fi
           echo ""
           echo "📋 详细状态值:"
-          echo "  SDK恢复状态: ${{ steps.restore-sdk-cache.outputs.cache-hit }}"
           echo "  AVD恢复状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
 
       # ============================================
-      # 阶段2: 环境设置 (基于缓存状态优化)
+      # 阶段2: 环境设置 (SDK 每次重新安装)
       # ============================================
 
       - name: Setup Java
@@ -122,15 +106,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Setup SDK
-        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
-
-      - name: Save SDK Cache
-        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       # ============================================
       # 阶段2: 依赖下载和环境配置
@@ -167,7 +143,7 @@ jobs:
           echo "✅ Android 环境配置完成"
 
       # ============================================
-      # 阶段3: AVD环境准备 (基于缓存状态)
+      # 阶段3: AVD环境准备 (使用缓存优化)
       # ============================================
 
       - name: Setup AVD
@@ -176,50 +152,35 @@ jobs:
           echo "🔧 准备 AVD 环境..."
           echo "🔍 AVD缓存状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
           
+          AVD_NAME="test-api${{ env.API_LEVEL }}"
+          
           # 基于缓存状态决定执行策略
           if [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
             echo "⚡ AVD缓存命中，验证现有配置..."
-            AVD_NAME="test-api${{ env.API_LEVEL }}"
             
-            if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ]; then
-              echo "✅ AVD配置文件存在"
+            if [ -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ] && avdmanager list avd | grep -q "$AVD_NAME"; then
+              echo "✅ AVD缓存验证成功: $AVD_NAME"
               AVD_SIZE=$(du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo "unknown")
               echo "💾 AVD缓存大小: $AVD_SIZE"
-              
-              # 验证AVD可用性
-              if avdmanager list avd | grep -q "$AVD_NAME"; then
-                echo "✅ AVD缓存验证成功: $AVD_NAME"
-                echo "🚀 跳过AVD创建，直接使用缓存"
-              else
-                echo "⚠️ AVD缓存损坏，重新创建..."
-                echo "false" > /tmp/cache_valid
-              fi
+              echo "🚀 跳过AVD创建，直接使用缓存"
             else
-              echo "⚠️ AVD配置文件缺失，重新创建..."
-              echo "false" > /tmp/cache_valid
+              echo "⚠️ AVD缓存无效，重新创建..."
+              rm -rf "$HOME/.android/avd/${AVD_NAME}.avd" "$HOME/.android/avd/${AVD_NAME}.ini" 2>/dev/null || true
             fi
           else
             echo "📥 AVD缓存未命中，开始创建..."
-            echo "false" > /tmp/cache_valid
           fi
           
-          # 如果缓存无效或未命中，执行完整创建流程
-          if [ ! -f /tmp/cache_valid ] || [ "$(cat /tmp/cache_valid 2>/dev/null)" = "false" ]; then
-            echo "🔨 执行完整AVD创建流程..."
+          # 如果需要创建AVD
+          if [ ! -f "$HOME/.android/avd/${AVD_NAME}.avd/config.ini" ] || [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "🔨 执行AVD创建流程..."
             
-            # 检查并安装必要的system-images
+            # 安装必要的system-images
             SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
-            echo "📦 检查系统镜像: $SYSTEM_IMAGE"
-            
-            if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
-              echo "📥 下载系统镜像..."
-              echo "y" | sdkmanager "$SYSTEM_IMAGE"
-            else
-              echo "✅ 系统镜像已存在"
-            fi
+            echo "📦 安装系统镜像: $SYSTEM_IMAGE"
+            echo "y" | sdkmanager "$SYSTEM_IMAGE"
             
             # 创建AVD
-            AVD_NAME="test-api${{ env.API_LEVEL }}"
             echo "📱 创建AVD: $AVD_NAME"
             echo "no" | avdmanager create avd \
               --force \
@@ -242,7 +203,6 @@ jobs:
           
           # 最终验证
           echo "🔍 最终AVD验证:"
-          AVD_NAME="test-api${{ env.API_LEVEL }}"
           if avdmanager list avd | grep -q "$AVD_NAME"; then
             echo "✅ AVD准备完成: $AVD_NAME"
           else
@@ -255,7 +215,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v12
 
 
 
@@ -351,11 +311,11 @@ jobs:
           echo "  📲 应用安装: org.fossify.calendar"
           echo "  📸 运行截图: calendar_running_screenshot.png"
           echo ""
-          echo "⚡ 性能优化 (v3.0精简版):"
-          echo "  🗑️ 移除复杂预检查和快照逻辑"
+          echo "⚡ 性能优化 (v4.0精简版):"
+          echo "  🗑️ 移除SDK缓存，确保使用最新SDK"
+          echo "  💾 保留AVD缓存，加速模拟器准备"
           echo "  🎯 专注核心目标: 构建→安装→运行→截图"
-          echo "  💾 保留有效缓存: SDK和AVD配置"
-          echo "  📸 新增截图功能: 验证应用运行状态"
+          echo "  📸 截图功能: 验证应用运行状态"
           
           if [ "${{ job.status }}" = "success" ]; then
             echo ""
@@ -363,7 +323,7 @@ jobs:
           fi
 
       # ============================================
-      # 结果总结：缓存已在各Setup步骤后立即保存
+      # 结果总结：AVD缓存已在Setup步骤后立即保存
       # ============================================
 
       - name: Upload Test Results and Screenshots
