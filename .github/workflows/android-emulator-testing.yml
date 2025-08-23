@@ -42,10 +42,28 @@ jobs:
         with:
           fetch-depth: 1
 
-      # 提前进行所有缓存操作，在环境设置之前
-      - name: Cache Android SDK
-        id: cache-android-sdk
-        uses: actions/cache@v4
+      # ============================================
+      # 缓存策略决策：检查 → 还原 or 初始化
+      # ============================================
+
+      - name: Check Cache Availability
+        id: check-cache
+        run: |
+          echo "🔍 检查缓存可用性..."
+          echo ""
+          echo "📋 缓存键信息:"
+          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
+          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
+          echo ""
+          echo "📁 本地文件检查:"
+          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
+          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo '✅ 存在' || echo '❌ 不存在')"
+          echo ""
+          echo "🎯 即将尝试缓存恢复..."
+
+      - name: Restore Android SDK Cache
+        id: restore-sdk-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/sdk
           key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
@@ -54,9 +72,9 @@ jobs:
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
             ${{ runner.os }}-android-sdk-
 
-      - name: Cache AVD
-        id: cache-avd
-        uses: actions/cache@v4
+      - name: Restore AVD Cache
+        id: restore-avd-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.android/avd
           key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
@@ -65,35 +83,32 @@ jobs:
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
 
-      - name: Cache Status Analysis
+      - name: Cache Strategy Decision
         run: |
-          echo "🔍 缓存状态分析 (环境设置前):"
+          echo "🎯 缓存策略决策："
           echo ""
-          echo "📊 缓存命中情况:"
-          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
-          echo "  🎮 AVD配置: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '❌ 缓存未命中' }}"
-          echo "  🏗️ Gradle: 将在setup-gradle时自动管理"
+          echo "📊 缓存恢复结果:"
+          echo "  📱 Android SDK: ${{ steps.restore-sdk-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
+          echo "  🎮 AVD配置: ${{ steps.restore-avd-cache.outputs.cache-hit == 'true' && '✅ 成功恢复' || '❌ 需要初始化' }}"
           echo ""
-          echo "🔍 详细缓存信息:"
-          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
-          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
-          echo "  SDK缓存状态: ${{ steps.cache-android-sdk.outputs.cache-hit }}"
-          echo "  AVD缓存状态: ${{ steps.cache-avd.outputs.cache-hit }}"
+          echo "📁 恢复后文件检查:"
+          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && du -sh "$HOME/.android/sdk" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
+          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && du -sh "$HOME/.android/avd" 2>/dev/null | cut -f1 || echo '❌ 不存在')"
           echo ""
-          echo "📁 文件系统检查:"
-          echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
-          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo '✅ 存在' || echo '❌ 不存在')"
-          echo ""
-          echo "⚡ 性能预期:"
-          if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ] && [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
-            echo "  🚀 双缓存命中 - 最佳性能，大幅跳过下载和配置"
-          elif [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" = "true" ]; then
-            echo "  ⚡ SDK缓存命中 - 跳过SDK下载，仅需配置AVD"
-          elif [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
-            echo "  🔧 AVD缓存命中 - 跳过AVD配置，仅需下载SDK"
+          echo "🔄 执行策略分流:"
+          if [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "  🚀 路径A: 双缓存恢复成功 → 跳过初始化，直接验证"
+          elif [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "  ⚡ 路径B: SDK恢复成功 → 跳过SDK初始化，仅初始化AVD"
+          elif [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
+            echo "  🔧 路径C: AVD恢复成功 → 跳过AVD初始化，仅初始化SDK"
           else
-            echo "  📥 首次运行 - 需要完整下载和配置"
+            echo "  📥 路径D: 全新初始化 → 完整的SDK和AVD安装配置"
           fi
+          echo ""
+          echo "📋 详细状态值:"
+          echo "  SDK恢复状态: ${{ steps.restore-sdk-cache.outputs.cache-hit }}"
+          echo "  AVD恢复状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
 
       # ============================================
       # 阶段2: 环境设置 (基于缓存状态优化)
@@ -158,10 +173,10 @@ jobs:
         timeout-minutes: 6
         run: |
           echo "🔧 准备 AVD 环境..."
-          echo "🔍 AVD缓存状态: ${{ steps.cache-avd.outputs.cache-hit }}"
+          echo "🔍 AVD缓存状态: ${{ steps.restore-avd-cache.outputs.cache-hit }}"
           
           # 基于缓存状态决定执行策略
-          if [ "${{ steps.cache-avd.outputs.cache-hit }}" = "true" ]; then
+          if [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" = "true" ]; then
             echo "⚡ AVD缓存命中，验证现有配置..."
             AVD_NAME="test-api${{ env.API_LEVEL }}"
             
@@ -333,6 +348,44 @@ jobs:
           if [ "${{ job.status }}" = "success" ]; then
             echo ""
             echo "🎉 测试完成，截图已生成！"
+          fi
+
+      # ============================================
+      # 缓存保存：为下次运行建立缓存
+      # ============================================
+
+      - name: Save Android SDK Cache
+        if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/sdk
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
+
+      - name: Save AVD Cache
+        if: steps.restore-avd-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/avd
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
+
+      - name: Cache Save Summary
+        if: always()
+        run: |
+          echo "💾 缓存保存总结:"
+          echo ""
+          echo "📊 保存状态:"
+          echo "  📱 SDK缓存: ${{ steps.restore-sdk-cache.outputs.cache-hit != 'true' && '💾 已保存新缓存' || '⚡ 跳过(已存在)' }}"
+          echo "  🎮 AVD缓存: ${{ steps.restore-avd-cache.outputs.cache-hit != 'true' && '💾 已保存新缓存' || '⚡ 跳过(已存在)' }}"
+          echo ""
+          echo "🚀 下次运行预期:"
+          if [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" != "true" ] && [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "  🎯 双缓存建立 → 下次运行将显著加速"
+          elif [ "${{ steps.restore-sdk-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "  📱 SDK缓存建立 → 下次跳过SDK下载"
+          elif [ "${{ steps.restore-avd-cache.outputs.cache-hit }}" != "true" ]; then
+            echo "  🎮 AVD缓存建立 → 下次跳过AVD配置"
+          else
+            echo "  ✅ 缓存已完整 → 性能已优化"
           fi
 
       - name: Upload Test Results and Screenshots
