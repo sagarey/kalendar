@@ -10,7 +10,7 @@ on:
 
 env:
   API_LEVEL: 34
-  TARGET: google_apis
+  TARGET: default
   ARCH: x86_64
   PROFILE: pixel_3a
 
@@ -23,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      # 高级 Gradle 性能优化 - 最大化编译速度
-      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dorg.gradle.configuration-cache=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.daemon.jvm.options="-Xmx2g" -Dorg.gradle.jvmargs="-Xmx10g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseCompressedOops -XX:+UnlockExperimentalVMOptions -XX:+UseZGC"
+      # 高级 Gradle 性能优化 - 稳定且高效
+      GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.daemon.jvm.options="-Xmx2g" -Dorg.gradle.jvmargs="-Xmx10g -XX:+UseG1GC -XX:+UseStringDeduplication -XX:+OptimizeStringConcat -XX:+UseCompressedOops"
       # 额外的编译优化环境变量
       KOTLIN_INCREMENTAL: true
       KOTLIN_DAEMON_JVMARGS: "-Xmx2g -XX:+UseG1GC"
@@ -94,19 +94,45 @@ jobs:
 
       - name: Create AVD
         run: |
+          echo "🔍 检查可用的系统镜像..."
+          sdkmanager --list_installed | grep "system-images" || echo "未找到已安装的系统镜像"
+          
           SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
           AVD_NAME="test-api${{ env.API_LEVEL }}"
-          echo "no" | avdmanager create avd --force --name "$AVD_NAME" --abi "${{ env.TARGET }}/${{ env.ARCH }}" --package "$SYSTEM_IMAGE" --device "${{ env.PROFILE }}"
           
-          # 优化AVD性能配置 - 充分利用4核心16GB配置
+          echo "📱 创建AVD: $AVD_NAME"
+          echo "📦 使用系统镜像: $SYSTEM_IMAGE"
+          
+          # 创建AVD
+          echo "no" | avdmanager create avd \
+            --force \
+            --name "$AVD_NAME" \
+            --abi "${{ env.TARGET }}/${{ env.ARCH }}" \
+            --package "$SYSTEM_IMAGE" \
+            --device "${{ env.PROFILE }}" || {
+            echo "❌ AVD创建失败，尝试使用备选配置..."
+            echo "📋 可用设备列表:"
+            avdmanager list device || echo "无法获取设备列表"
+            echo "📋 可用系统镜像:"
+            avdmanager list target || echo "无法获取目标列表"
+            exit 1
+          }
+          
+          # 优化AVD性能配置
           AVD_CONFIG="$ANDROID_AVD_HOME/${AVD_NAME}.avd/config.ini"
-          echo "hw.cpu.ncore=4" >> "$AVD_CONFIG"
-          echo "hw.ramSize=6144" >> "$AVD_CONFIG"
-          echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-          echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-          echo "hw.keyboard=yes" >> "$AVD_CONFIG"
-          echo "disk.dataPartition.size=6144MB" >> "$AVD_CONFIG"
-          echo "vm.heapSize=512" >> "$AVD_CONFIG"
+          if [ -f "$AVD_CONFIG" ]; then
+            echo "⚙️ 优化AVD性能配置..."
+            echo "hw.cpu.ncore=4" >> "$AVD_CONFIG"
+            echo "hw.ramSize=6144" >> "$AVD_CONFIG"
+            echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
+            echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
+            echo "hw.keyboard=yes" >> "$AVD_CONFIG"
+            echo "disk.dataPartition.size=6144MB" >> "$AVD_CONFIG"
+            echo "vm.heapSize=512" >> "$AVD_CONFIG"
+            echo "✅ AVD配置完成"
+          else
+            echo "❌ AVD配置文件未找到: $AVD_CONFIG"
+          fi
 
       # ============================================
       # 阶段4: APK 构建性能优化
@@ -129,14 +155,12 @@ jobs:
           echo "🚀 开始高性能APK构建..."
           START_TIME=$(date +%s)
           
-          # 使用优化的构建命令
+          # 使用稳定的构建命令
           ./gradlew clean assembleFossDebug \
             --stacktrace \
             --build-cache \
-            --configuration-cache \
             --parallel \
-            --daemon \
-            --info
+            --daemon
           
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
