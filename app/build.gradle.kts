@@ -34,7 +34,7 @@ android {
         versionName = project.property("VERSION_NAME").toString()
         multiDexEnabled = true
         vectorDrawables.useSupportLibrary = true
-        setProperty("archivesBaseName", "calendar-$versionCode")
+        setProperty("archivesBaseName", "kalendar-app")
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
