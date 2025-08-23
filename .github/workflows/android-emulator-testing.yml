@@ -143,7 +143,7 @@ jobs:
           profile: Nexus 6
           avd-name: test-api${{ env.API_LEVEL }}
           force-avd-creation: false  # 尝试复用已有 AVD
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -qemu -m 2048 -smp 2 -accel kvm -netdelay none -netspeed full -partition-size 4096
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
@@ -151,45 +151,62 @@ jobs:
           script: |
             echo "📱 启动模拟器..."
             
+            # 等待模拟器进程启动
+            echo "⏳ 等待模拟器进程启动..."
+            sleep 10
+            
             # 检查模拟器状态
             echo "🔍 检查模拟器状态..."
             adb devices
             
-            # 等待设备连接
+            # 等待设备连接，增加重试次数
             echo "⏳ 等待 ADB 连接..."
-            for i in {1..5}; do
+            for i in {1..10}; do
               if adb devices | grep -q "emulator.*device"; then
-                echo "✅ ADB 已连接 ($i/5)"
+                echo "✅ ADB 已连接 ($i/10)"
                 break
               else
-                echo "⏳ 等待连接... ($i/5)"
-                sleep 3
+                echo "⏳ 等待连接... ($i/10)"
+                sleep 5
               fi
-              if [ $i -eq 5 ]; then
+              if [ $i -eq 10 ]; then
                 echo "❌ ADB 连接超时"
+                echo "模拟器状态:"
+                adb devices
+                echo "尝试重启 ADB..."
+                adb kill-server || true
+                adb start-server || true
+                sleep 3
                 adb devices
                 exit 1
               fi
             done
             
+            # 获取设备名称
+            DEVICE=$(adb devices | grep emulator | cut -f1)
+            echo "🎯 连接到设备: $DEVICE"
+            
             # 等待系统完全启动
             echo "⏳ 等待系统启动..."
-            if timeout 120 adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'; then
+            if timeout 180 adb -s $DEVICE wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 2; done'; then
               echo "✅ 系统启动完成"
             else
               echo "❌ 系统启动超时"
+              echo "设备属性:"
+              adb -s $DEVICE shell getprop | grep boot || true
               exit 1
             fi
             
             # 优化性能设置
             echo "⚡ 优化性能..."
-            adb shell settings put global window_animation_scale 0 2>/dev/null || true
-            adb shell settings put global transition_animation_scale 0 2>/dev/null || true
-            adb shell settings put global animator_duration_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
             
             # 验证模拟器状态
-            ANDROID_VERSION=$(adb shell getprop ro.build.version.release 2>/dev/null || echo "Unknown")
-            echo "✅ 模拟器就绪 - Android $ANDROID_VERSION"
+            ANDROID_VERSION=$(adb -s $DEVICE shell getprop ro.build.version.release 2>/dev/null || echo "Unknown")
+            ANDROID_API=$(adb -s $DEVICE shell getprop ro.build.version.sdk 2>/dev/null || echo "Unknown")
+            echo "✅ 模拟器就绪 - Android $ANDROID_VERSION (API $ANDROID_API)"
 
       - name: Cache build outputs
         id: cache-build
