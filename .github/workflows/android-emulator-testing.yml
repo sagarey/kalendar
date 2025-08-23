@@ -66,19 +66,29 @@ jobs:
             -gpu swiftshader_indirect -netdelay none -netspeed full 
             -cores 4 -memory 8192 
             -camera-back none -camera-front none
+            -prop emu.locale=zh-CN -prop emu.language=zh -prop emu.country=CN
             -prop persist.sys.locale=zh-CN -prop persist.sys.language=zh -prop persist.sys.country=CN
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
           working-directory: ./
           script: |
-            # 等待设备启动完成 (已预设中文环境)
+            # 等待设备启动完成
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+            
+            # # 强制设置中文环境 (确保生效)
+            # adb shell "settings put system system_locales zh-CN"
+            # adb shell "settings put global device_locales zh-CN"
+            # adb shell "setprop persist.sys.locale zh-CN"
+            # adb shell "setprop persist.sys.language zh"
+            # adb shell "setprop persist.sys.country CN"
+            # adb shell "setprop ro.product.locale zh-CN"
+            # sleep 3
             
             # 安装应用
             adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
             
-            # 通过 monkey 启动应用 (更可靠的方式)
+            # 通过 monkey 启动应用
             adb shell monkey -p org.fossify.calendar.debug -c android.intent.category.LAUNCHER 1
             sleep 8
             
