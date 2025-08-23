@@ -140,9 +140,6 @@ jobs:
               echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
               echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
               echo "✅ AVD性能优化完成"
-              # 输出 AVD_CONFIG 文件内容
-              echo "AVD_CONFIG 文件内容:"
-              cat "$AVD_CONFIG"
             fi
           fi
           
