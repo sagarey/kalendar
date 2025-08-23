@@ -71,21 +71,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Cache Status Check
-        run: |
-          echo "📊 缓存状态检查 (分离式缓存策略):"
-          echo "  🏗️ Gradle缓存: 由 setup-gradle 自动管理"
-          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
-          echo "  🎮 AVD缓存: 将在阶段3检查"
-          echo ""
-          echo "📁 环境路径检查:"
-          echo "  ANDROID_HOME: $ANDROID_HOME"
-          echo "  SDK目录: $([ -d "$ANDROID_HOME" ] && echo "✅存在 ($(du -sh $ANDROID_HOME 2>/dev/null | cut -f1 || echo 'unknown'))" || echo "❌缺失")"
-          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo "✅存在 ($(du -sh $HOME/.android/avd 2>/dev/null | cut -f1 || echo 'unknown'))" || echo "❌缺失")"
-          echo ""
-          echo "🔑 缓存键信息:"
-          echo "  SDK键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
-
       # ============================================
       # 阶段2: 依赖下载和环境配置
       # ============================================
@@ -140,12 +125,6 @@ jobs:
         run: |
           echo "🔧 准备 AVD 环境..."
           
-          # AVD缓存状态诊断
-          echo "📊 AVD缓存状态:"
-          echo "  🎮 AVD缓存: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次创建' }}"
-          echo "  🔑 AVD键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
-          echo ""
-          
           # 检查并安装必要的system-images
           SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
           echo "📦 检查系统镜像: $SYSTEM_IMAGE"
@@ -196,7 +175,26 @@ jobs:
             exit 1
           fi
 
-      - name: Generate AVD snapshot for caching
+      - name: Complete Cache Status Check
+        run: |
+          echo "📊 完整缓存状态检查 (所有缓存操作完成后):"
+          echo "  🏗️ Gradle缓存: 由 setup-gradle 自动管理"
+          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
+          echo "  🎮 AVD缓存: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次创建' }}"
+          echo ""
+          echo "📁 环境路径检查:"
+          echo "  ANDROID_HOME: $ANDROID_HOME"
+          echo "  SDK目录: $([ -d "$ANDROID_HOME" ] && echo "✅存在 ($(du -sh $ANDROID_HOME 2>/dev/null | cut -f1 || echo 'unknown'))" || echo "❌缺失")"
+          echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo "✅存在 ($(du -sh $HOME/.android/avd 2>/dev/null | cut -f1 || echo 'unknown'))" || echo "❌缺失")"
+          echo ""
+          echo "🔑 缓存键信息:"
+          echo "  SDK键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8"
+          echo "  AVD键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7"
+          echo ""
+          echo "📊 缓存效果:"
+          echo "  预计性能提升: ${{ (steps.cache-android-sdk.outputs.cache-hit == 'true' && steps.cache-avd.outputs.cache-hit == 'true') && '🚀 双缓存命中，最佳性能' || '⚡ 部分缓存命中，性能提升' }}"
+
+      - name: Create AVD snapshot for future caching
         if: steps.cache-avd.outputs.cache-hit != 'true'
         timeout-minutes: 5
         uses: reactivecircus/android-emulator-runner@v2
@@ -211,7 +209,11 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: echo "📷 AVD快照生成完成"
+          script: |
+            echo "📷 创建AVD快照用于未来缓存..."
+            echo "🎯 目的: 为后续workflow运行建立快速启动快照"
+            echo "⚡ 效果: 下次运行时模拟器启动将从3-4分钟减少到30-60秒"
+            echo "✅ AVD快照创建完成，将自动保存到缓存"
 
       # ============================================
       # 阶段4: APK 构建
