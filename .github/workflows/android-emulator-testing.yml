@@ -51,35 +51,30 @@ jobs:
         run: |
           echo "🔍 检查缓存可用性..."
           echo ""
-          echo "📋 缓存键信息:"
-          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9"
-          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8"
+          echo "📋 缓存键信息 (v11统一版本):"
+          echo "  SDK缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11"
+          echo "  AVD缓存键: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11"
           echo ""
-          echo "📁 本地文件检查:"
+          echo "📁 初始本地文件检查:"
           echo "  SDK目录: $([ -d "$HOME/.android/sdk" ] && echo '✅ 存在' || echo '❌ 不存在')"
           echo "  AVD目录: $([ -d "$HOME/.android/avd" ] && echo '✅ 存在' || echo '❌ 不存在')"
           echo ""
-          echo "🎯 即将尝试缓存恢复..."
+          echo "🎯 接下来将尝试缓存恢复..."
+          echo "⚠️  注意: 如果缓存未命中，将进行完整的SDK/AVD初始化"
 
       - name: Restore Android SDK Cache
         id: restore-sdk-cache
         uses: actions/cache/restore@v4
         with:
           path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9
-          # 注释: 移除restore-keys，只进行精确匹配
-          # restore-keys: |
-          #   ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v8
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       - name: Restore AVD Cache
         id: restore-avd-cache
         uses: actions/cache/restore@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8
-          # 注释: 移除restore-keys，只进行精确匹配
-          # restore-keys: |
-          #   ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v7
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
 
       - name: Cache Strategy Decision
         run: |
@@ -319,10 +314,9 @@ jobs:
             set -e  # 启用错误退出模式
             echo "🚀 Android模拟器测试开始"
             
-            # 检查APK文件
-            APK_PATH="app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
-            echo "🔍 检查APK文件: $APK_PATH"
-            if [ ! -f "$APK_PATH" ]; then
+            # 检查APK文件 - 使用固定路径
+            echo "🔍 检查APK文件: app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
+            if [ ! -f "app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk" ]; then
               echo "❌ APK文件不存在"
               echo "📁 搜索可用的APK文件:"
               find . -name "*.apk" -type f 2>/dev/null | head -5
@@ -331,7 +325,7 @@ jobs:
               exit 1
             fi
             
-            APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+            APK_SIZE=$(du -h "app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk" | cut -f1)
             echo "✅ APK文件检查通过: $APK_SIZE"
             
             # 检查设备连接
@@ -350,15 +344,15 @@ jobs:
             fi
             echo "✅ 找到 $DEVICE_COUNT 个可用设备"
             
-            # 安装APK
-            echo "📲 安装APK: $APK_PATH"
-            if adb install -r "$APK_PATH"; then
+            # 安装APK - 使用固定路径
+            echo "📲 安装APK: app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk"
+            if adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk; then
               echo "✅ APK安装成功"
             else
               echo "❌ APK安装失败，尝试其他方法"
               echo "🔄 卸载旧版本后重新安装"
               adb uninstall org.fossify.calendar 2>/dev/null || echo "没有旧版本需要卸载"
-              if adb install "$APK_PATH"; then
+              if adb install app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk; then
                 echo "✅ 重新安装成功"
               else
                 echo "❌ 安装彻底失败"
@@ -433,14 +427,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.android/sdk
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v9
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v11
 
       - name: Save AVD Cache
         if: steps.restore-avd-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v8
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
 
       - name: Cache Save Summary
         if: always()
