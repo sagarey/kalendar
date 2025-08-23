@@ -77,7 +77,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ env.PROFILE }}-v12
 
       # ============================================
       # 阶段4: Android SDK 设置 (基于缓存优化)
@@ -91,6 +91,8 @@ jobs:
             platform-tools
             platforms;android-${{ env.API_LEVEL }}
             build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+            system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}
+            emulator
 
       - name: Save SDK Cache
         if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
@@ -119,7 +121,7 @@ jobs:
             echo "🔨 AVD缓存未命中，开始创建AVD..."
             
             # 检查并安装必要的system-images
-            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
+            SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
             echo "📦 检查系统镜像: $SYSTEM_IMAGE"
             
             if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
@@ -135,9 +137,9 @@ jobs:
             echo "no" | avdmanager create avd \
               --force \
               --name "$AVD_NAME" \
-              --abi "default/x86_64" \
+              --abi "${{ env.TARGET }}/${{ env.ARCH }}" \
               --package "$SYSTEM_IMAGE" \
-              --device "Nexus 6"
+              --device "${{ env.PROFILE }}"
             
             # 优化AVD配置
             AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
@@ -162,7 +164,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.android/avd
-          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-nexus6-v11
+          key: ${{ runner.os }}-avd-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-${{ env.PROFILE }}-v12
 
       # ============================================
       # 阶段6: APK 构建 (包含依赖下载)
