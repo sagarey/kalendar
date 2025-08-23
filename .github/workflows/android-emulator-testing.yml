@@ -159,18 +159,7 @@ jobs:
       # 阶段4: APK 构建性能优化
       # ============================================
 
-      - name: Gradle Daemon 预热和性能检测
-        run: |
-          echo "🔥 Gradle Daemon 预热..."
-          ./gradlew help --no-daemon
-          
-          echo "📊 编译环境检测:"
-          echo "Java版本: $(java -version 2>&1 | head -1)"
-          echo "Gradle版本: $(./gradlew --version | grep 'Gradle' | head -1)"
-          echo "可用处理器: $(nproc)"
-          echo "JVM最大内存: $(java -XX:+PrintFlagsFinal -version 2>/dev/null | grep MaxHeapSize | awk '{print $4/1024/1024 "MB"}' || echo 'N/A')"
-
-      - name: Build APK (高性能模式)
+      - name: Build APK
         timeout-minutes: 12
         run: |
           echo "🚀 开始高性能APK构建..."
