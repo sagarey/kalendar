@@ -118,9 +118,21 @@ jobs:
             exit 1
           }
           
-          # 优化AVD性能配置
+          echo "✅ AVD创建完成，检查生成的文件..."
+          
+          # 检查AVD目录和文件
+          echo "📁 AVD目录内容:"
+          ls -la "$ANDROID_AVD_HOME/" || echo "无法访问AVD目录"
+          
+          # 等待配置文件生成
+          sleep 2
+          
+          # 查找实际的配置文件路径
           AVD_CONFIG="$ANDROID_AVD_HOME/${AVD_NAME}.avd/config.ini"
+          echo "🔍 查找配置文件: $AVD_CONFIG"
+          
           if [ -f "$AVD_CONFIG" ]; then
+            echo "✅ 找到配置文件，开始优化..."
             echo "⚙️ 优化AVD性能配置..."
             echo "hw.cpu.ncore=4" >> "$AVD_CONFIG"
             echo "hw.ramSize=6144" >> "$AVD_CONFIG"
@@ -131,7 +143,16 @@ jobs:
             echo "vm.heapSize=512" >> "$AVD_CONFIG"
             echo "✅ AVD配置完成"
           else
-            echo "❌ AVD配置文件未找到: $AVD_CONFIG"
+            echo "⚠️ 配置文件未在预期位置找到，尝试其他位置..."
+            echo "🔍 搜索所有可能的配置文件位置:"
+            find "$ANDROID_AVD_HOME" -name "config.ini" 2>/dev/null || echo "未找到任何config.ini文件"
+            find "$HOME/.android" -name "config.ini" 2>/dev/null || echo "在.android目录未找到config.ini"
+            
+            # 列出创建的AVD
+            echo "📋 已创建的AVD列表:"
+            avdmanager list avd || echo "无法获取AVD列表"
+            
+            echo "⚠️ 跳过AVD性能优化，使用默认配置"
           fi
 
       # ============================================
@@ -183,7 +204,7 @@ jobs:
           profile: ${{ env.PROFILE }}
           avd-name: test-api${{ env.API_LEVEL }}
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 6144 -cores 4 -accel on
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 4096 -cores 2 -accel on
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
