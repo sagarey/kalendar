@@ -50,14 +50,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Pre-download dependencies
-        timeout-minutes: 10  # 依赖下载超时控制
-        run: |
-          echo "📥 下载依赖..."
-          echo "💾 内存: $(free -h | grep '^Mem:' | awk '{print $2}') | CPU: $(nproc)核"
-          ./gradlew dependencies --stacktrace
-          echo "✅ 依赖下载完成"
-
       - name: Cache Android SDK
         id: cache-android-sdk
         uses: actions/cache@v4
@@ -73,6 +65,14 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Pre-download dependencies
+        timeout-minutes: 10
+        run: |
+          echo "📥 下载依赖..."
+          echo "💾 内存: $(free -h | grep '^Mem:' | awk '{print $2}') | CPU: $(nproc)核"
+          ./gradlew dependencies --stacktrace
+          echo "✅ 依赖下载完成"
 
       - name: Setup Android Environment
         run: |
@@ -90,12 +90,96 @@ jobs:
             echo "⚠️ KVM 加速不可用"
           fi
           
-          # 启动 ADB 服务
-          adb start-server
-          
           # 设置图形环境
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      # ============================================
+      # APK构建阶段 (在模拟器启动前完成)
+      # ============================================
+      
+      - name: Comprehensive Build Diagnostics
+        run: |
+          echo "🔧 全面构建诊断..."
+          echo "📊 系统环境:"
+          echo "  操作系统: $(uname -a)"
+          echo "  Java版本: $(java -version 2>&1 | head -3)"
+          echo "  内存状态: $(free -h)"
+          echo "  磁盘空间: $(df -h . | tail -1)"
+          echo ""
+          
+          echo "📂 项目结构检查:"
+          echo "  根目录: $(ls -la | head -10)"
+          echo "  app目录: $(ls -la app/ | head -5)"
+          echo "  源码目录: $(find app/src -name "*.kt" | wc -l) 个Kotlin文件"
+          echo ""
+          
+          echo "🔍 Gradle配置:"
+          echo "  Gradle版本:"
+          ./gradlew --version | head -5
+          echo ""
+          echo "  项目属性:"
+          ./gradlew properties | grep -E "(version|sdk|id)" | head -10
+          echo ""
+          
+          echo "📋 可用构建任务:"
+          ./gradlew tasks --group="build" | grep -E "(assemble|build)" | head -10
+
+      - name: Clean Build Environment
+        run: |
+          echo "🧹 清理构建环境..."
+          ./gradlew clean --stacktrace
+          echo "✅ 清理完成"
+
+      - name: Build APK (Pre-Emulator)
+        timeout-minutes: 15
+        run: |
+          echo "🔨 构建 APK (模拟器启动前)..."
+          
+          BUILD_START_TIME=$(date +%s)
+          
+          # 步骤1: 验证项目配置
+          echo "📋 步骤1: 验证项目配置"
+          if ./gradlew help --stacktrace; then
+            echo "✅ 项目配置验证成功"
+          else
+            echo "❌ 项目配置验证失败"
+            exit 1
+          fi
+          
+          # 步骤2: 下载和验证依赖
+          echo "📋 步骤2: 验证依赖"
+          if ./gradlew dependencies --configuration debugCompileClasspath --stacktrace | head -20; then
+            echo "✅ 依赖验证成功"
+          else
+            echo "❌ 依赖验证失败"
+            exit 1
+          fi
+          
+          # 步骤3: 构建APK
+          echo "📋 步骤3: 构建APK"
+          if ./gradlew assembleFossDebug --stacktrace --no-daemon --info; then
+            BUILD_END_TIME=$(date +%s)
+            BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
+            echo "✅ APK构建成功 (${BUILD_DURATION}s)"
+            
+            # 验证APK文件
+            APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
+            if [ -f "$APK_PATH" ]; then
+              APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+              echo "✅ APK文件生成: $APK_PATH ($APK_SIZE)"
+            else
+              echo "❌ APK文件未生成"
+              exit 1
+            fi
+          else
+            echo "❌ APK构建失败"
+            exit 1
+          fi
+
+      # ============================================
+      # 模拟器启动阶段 (APK已准备就绪)
+      # ============================================
 
       - name: Cache Android AVD
         id: cache-avd
@@ -232,84 +316,7 @@ jobs:
           echo "  ~/.gradle: $(du -sh ~/.gradle 2>/dev/null | cut -f1 || echo '未找到')"
           echo "  ~/.android: $(du -sh ~/.android 2>/dev/null | cut -f1 || echo '未找到')"
 
-      - name: Comprehensive Build Diagnostics
-        run: |
-          echo "🔧 全面构建诊断..."
-          echo "📊 系统环境:"
-          echo "  操作系统: $(uname -a)"
-          echo "  Java版本: $(java -version 2>&1 | head -3)"
-          echo "  内存状态: $(free -h)"
-          echo "  磁盘空间: $(df -h . | tail -1)"
-          echo ""
-          
-          echo "📂 项目结构检查:"
-          echo "  根目录: $(ls -la | head -10)"
-          echo "  app目录: $(ls -la app/ | head -5)"
-          echo "  源码目录: $(find app/src -name "*.kt" | wc -l) 个Kotlin文件"
-          echo ""
-          
-          echo "🔍 Gradle配置:"
-          echo "  Gradle版本:"
-          ./gradlew --version | head -5
-          echo ""
-          echo "  项目属性:"
-          ./gradlew properties | grep -E "(version|sdk|id)" | head -10
-          echo ""
-          
-          echo "📋 可用构建任务:"
-          ./gradlew tasks --group="build" | grep -E "(assemble|build)" | head -10
 
-      - name: Clean Build Environment
-        run: |
-          echo "🧹 清理构建环境..."
-          ./gradlew clean --stacktrace
-          echo "✅ 清理完成"
-
-      - name: Step-by-Step Build
-        timeout-minutes: 15
-        run: |
-          echo "🔨 分步构建 APK..."
-          
-          BUILD_START_TIME=$(date +%s)
-          
-          # 步骤1: 验证项目配置
-          echo "📋 步骤1: 验证项目配置"
-          if ./gradlew help --stacktrace; then
-            echo "✅ 项目配置验证成功"
-          else
-            echo "❌ 项目配置验证失败"
-            exit 1
-          fi
-          
-          # 步骤2: 下载和验证依赖
-          echo "📋 步骤2: 验证依赖"
-          if ./gradlew dependencies --configuration debugCompileClasspath --stacktrace | head -20; then
-            echo "✅ 依赖验证成功"
-          else
-            echo "❌ 依赖验证失败"
-            exit 1
-          fi
-          
-          # 步骤3: 尝试构建
-          echo "📋 步骤3: 构建APK"
-          if ./gradlew assembleFossDebug --stacktrace --no-daemon --info; then
-            BUILD_END_TIME=$(date +%s)
-            BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
-            echo "✅ 构建成功 (${BUILD_DURATION}s)"
-          else
-            echo "❌ 构建失败"
-            echo ""
-            echo "📋 详细诊断信息:"
-            echo "  Gradle守护进程状态:"
-            ./gradlew --status || echo "无法获取守护进程状态"
-            echo ""
-            echo "  最近的构建日志:"
-            find . -name "*.log" -newer ~/.gradle 2>/dev/null | head -5 | xargs ls -la || echo "未找到构建日志"
-            echo ""
-            echo "  构建目录状态:"
-            ls -la app/build/ 2>/dev/null | head -10 || echo "无构建目录"
-            exit 1
-          fi
           
       - name: Emulator Final Check
         timeout-minutes: 3
@@ -350,23 +357,26 @@ jobs:
             exit 1
           fi
 
-      - name: Verify APK and Simple Install
-        timeout-minutes: 5
-        continue-on-error: true  # 允许此步骤失败
+      - name: Install Pre-Built APK
+        timeout-minutes: 3
+        continue-on-error: true
         run: |
-          echo "📱 简化的APK验证和安装..."
+          echo "📱 安装预构建的APK..."
           
-          # 检查APK文件
+          # APK应该已经在之前的步骤中构建完成
           APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
           if [ ! -f "$APK_PATH" ]; then
-            echo "❌ APK文件不存在: $APK_PATH"
-            echo "📂 查找APK文件:"
-            find app/build -name "*.apk" 2>/dev/null || echo "未找到任何APK文件"
+            echo "❌ 预构建的APK文件不存在: $APK_PATH"
+            echo "这不应该发生，APK应该在模拟器启动前就已构建"
             exit 1
           fi
           
           APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-          echo "✅ APK文件: $APK_PATH ($APK_SIZE)"
+          echo "✅ 使用预构建APK: $APK_PATH ($APK_SIZE)"
+          
+          # 启动 ADB 服务
+          echo "🔗 启动ADB服务..."
+          adb start-server
           
           # 获取设备ID并测试连接
           echo "📱 获取设备信息..."
