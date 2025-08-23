@@ -64,13 +64,13 @@ jobs:
       # 阶段2: 基础环境设置
       # ============================================
 
-      - name: Setup Java & Gradle
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
         
-      - name: Setup Gradle Cache & Permissions
+      - name: Setup Gradle Permissions
         run: |
           chmod +x gradlew
         
