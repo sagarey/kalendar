@@ -146,5 +146,5 @@ jobs:
           URL="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
           echo "## 📱 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "![日历应用截图](${URL})" >> $GITHUB_STEP_SUMMARY
+          echo "<img alt=\"日历应用截图\" src=\"${URL}\" width=\"33%\" />" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
