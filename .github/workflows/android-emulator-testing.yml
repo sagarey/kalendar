@@ -5,12 +5,12 @@ on:
 
 env:
   API_LEVEL: 34
-  GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4g" -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true
+  GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx6g" -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     
     steps:
       - name: Checkout
@@ -28,6 +28,33 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Enable KVM & Optimize Environment
+        run: |
+          echo "🚀 启用 KVM 硬件加速..."
+          # 配置 KVM 权限
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          
+          # 检查 KVM 状态
+          if [ -r /dev/kvm ]; then
+            echo "✅ KVM 硬件加速已启用"
+            ls -la /dev/kvm
+          else
+            echo "⚠️ KVM 不可用，将使用软件模拟"
+          fi
+          
+          # 设置环境变量
+          echo "ANDROID_EMULATOR_USE_SYSTEM_LIBS=1" >> $GITHUB_ENV
+          echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
+          echo "QEMU_AUDIO_DRV=none" >> $GITHUB_ENV
+          
+          # 显示系统资源
+          echo "💻 系统资源:"
+          echo "  CPU: $(nproc) 核心"
+          echo "  内存: $(free -h | grep '^Mem:' | awk '{print $2}')"
+          echo "  可用内存: $(free -h | grep '^Mem:' | awk '{print $7}')"
+
       - name: Build APK
         run: |
           chmod +x gradlew
@@ -40,15 +67,33 @@ jobs:
           target: default
           arch: x86_64
           profile: Nexus 6
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -cores 2 -memory 2048 -camera-back none -camera-front none
+          # 增加资源分配和优化参数 - 8GB 内存配置
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -cores 4 -memory 8192 -camera-back none -camera-front none -no-snapshot-save -no-snapshot-load -wipe-data -partition-size 2048
           disable-animations: true
           disable-spellchecker: true
+          disable-linux-hw-accel: false
           script: |
-            adb install app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            echo "📱 等待模拟器完全启动..."
+            adb wait-for-device
+            adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 3; done; input keyevent 82'
+            
+            echo "📦 安装应用..."
+            adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            
+            echo "🔍 验证安装..."
+            adb shell pm list packages | grep org.fossify.calendar.debug
+            
+            echo "🚀 启动应用..."
             adb shell am start -n org.fossify.calendar.debug/.activities.SplashActivity
-            sleep 8
+            
+            echo "⏱️ 等待应用加载..."
+            sleep 10
+            
+            echo "📸 截图..."
             adb shell screencap -p /sdcard/screenshot.png
             adb pull /sdcard/screenshot.png calendar_screenshot.png
+            
+            echo "✅ 测试完成！"
 
       - name: Upload Results
         uses: actions/upload-artifact@v4
