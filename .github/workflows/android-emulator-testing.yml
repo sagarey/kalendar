@@ -136,9 +136,21 @@ jobs:
             ${{ runner.os }}-avd-${{ env.API_LEVEL }}-
 
       - name: Prepare AVD Environment
-        timeout-minutes: 6
+        timeout-minutes: 8
         run: |
           echo "🔧 准备 AVD 环境..."
+          
+          # 检查并安装必要的system-images
+          SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};default;x86_64"
+          echo "📦 检查系统镜像: $SYSTEM_IMAGE"
+          
+          # 安装系统镜像 (如果不存在)
+          if ! sdkmanager --list_installed | grep -q "$SYSTEM_IMAGE"; then
+            echo "📥 下载系统镜像..."
+            echo "y" | sdkmanager "$SYSTEM_IMAGE"
+          else
+            echo "✅ 系统镜像已存在"
+          fi
           
           # 检查现有AVD状态
           AVD_NAME="test-api${{ env.API_LEVEL }}"
@@ -154,7 +166,7 @@ jobs:
               --force \
               --name "$AVD_NAME" \
               --abi "default/x86_64" \
-              --package "system-images;android-${{ env.API_LEVEL }};default;x86_64" \
+              --package "$SYSTEM_IMAGE" \
               --device "Nexus 6"
             
             # 优化AVD配置
