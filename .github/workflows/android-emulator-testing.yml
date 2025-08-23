@@ -312,9 +312,31 @@ jobs:
           fi
           
       - name: Verify and Install APK
-        timeout-minutes: 5
+        timeout-minutes: 8
         run: |
           echo "📱 验证和安装 APK..."
+          
+          # 等待模拟器完全就绪
+          echo "⏳ 确保模拟器完全就绪..."
+          sleep 10
+          
+          # 检查设备连接
+          echo "📱 检查设备连接..."
+          adb devices -l
+          
+          # 获取设备ID
+          DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
+          if [ -z "$DEVICE" ]; then
+            echo "❌ 未找到模拟器设备"
+            adb devices
+            exit 1
+          fi
+          echo "📱 使用设备: $DEVICE"
+          
+          # 检查设备状态
+          echo "🔍 检查设备状态..."
+          adb -s $DEVICE shell getprop sys.boot_completed
+          adb -s $DEVICE shell getprop ro.build.version.release
           
           # 检查APK文件
           APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
@@ -322,23 +344,39 @@ jobs:
             APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
             echo "✅ 找到APK文件: $APK_PATH ($APK_SIZE)"
             
-            # 验证APK有效性
-            if aapt dump badging "$APK_PATH" | head -5; then
-              echo "✅ APK文件有效"
-            else
-              echo "⚠️ APK验证警告，但继续安装"
-            fi
-            
-            # 安装APK
+            # 安装APK (增强的重试机制)
             echo "📲 安装APK到模拟器..."
-            if adb install -r -t "$APK_PATH" 2>/dev/null || adb install -r -t "$APK_PATH"; then
-              echo "✅ APK 安装成功"
-            else
-              echo "❌ APK 安装失败"
-              echo "📋 设备状态检查:"
+            INSTALL_SUCCESS=false
+            
+            for attempt in 1 2 3; do
+              echo "🔄 安装尝试 $attempt/3..."
+              
+              if adb -s $DEVICE install -r -t "$APK_PATH"; then
+                echo "✅ APK 安装成功 (尝试 $attempt)"
+                INSTALL_SUCCESS=true
+                break
+              else
+                echo "⚠️ 安装尝试 $attempt 失败"
+                if [ $attempt -lt 3 ]; then
+                  echo "🔄 等待5秒后重试..."
+                  sleep 5
+                  # 检查设备状态
+                  adb -s $DEVICE shell echo "设备仍然连接" || echo "设备连接异常"
+                fi
+              fi
+            done
+            
+            if [ "$INSTALL_SUCCESS" = false ]; then
+              echo "❌ APK 安装最终失败"
+              echo "📋 详细诊断信息:"
+              echo "  设备状态:"
               adb devices
-              echo "📋 设备存储空间:"
-              adb shell df /data | tail -1 || echo "无法获取存储信息"
+              echo "  设备存储空间:"
+              adb -s $DEVICE shell df /data | tail -1 || echo "无法获取存储信息"
+              echo "  已安装的包:"
+              adb -s $DEVICE shell pm list packages | grep calendar || echo "未找到相关包"
+              echo "  系统日志:"
+              adb -s $DEVICE logcat -t 50 | tail -10 || echo "无法获取日志"
               exit 1
             fi
           else
