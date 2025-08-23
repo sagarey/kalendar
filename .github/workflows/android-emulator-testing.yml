@@ -152,6 +152,18 @@ jobs:
             echo "❌ AVD验证失败"
             exit 1
           fi
+          
+          # 打印 AVD_CONFIG 文件内容
+          AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
+          if [ -f "$AVD_CONFIG" ]; then
+            echo ""
+            echo "📋 AVD配置文件内容 ($AVD_CONFIG):"
+            echo "================================================"
+            cat "$AVD_CONFIG"
+            echo "================================================"
+          else
+            echo "⚠️ AVD配置文件不存在: $AVD_CONFIG"
+          fi
 
       # ============================================
       # 阶段4: APK 构建
