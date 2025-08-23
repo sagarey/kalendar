@@ -276,9 +276,13 @@ jobs:
           echo "  磁盘可用: $(df -h . | tail -1 | awk '{print $4}')"
           echo "  Java版本: $(java -version 2>&1 | head -1)"
           
-          # 清理构建环境
+          # 清理构建环境和旧APK文件
           echo "🧹 清理构建环境..."
           ./gradlew clean --stacktrace
+          
+          # 清理可能残留的APK文件
+          echo "🗑️ 清理旧APK文件..."
+          rm -f app/build/outputs/apk/foss/debug/*.apk || echo "ℹ️ 无旧APK文件需要清理"
           
           # 执行构建
           echo "🔨 开始APK构建..."
@@ -325,7 +329,61 @@ jobs:
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
-          script: adb wait-for-device && ls -la app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
+          script: |
+            echo "🔍 等待设备准备就绪..."
+            adb wait-for-device
+            
+            echo "📱 检查设备状态..."
+            adb shell getprop sys.boot_completed
+            
+            echo "🧹 清理可能存在的旧版本应用..."
+            # 尝试卸载应用（如果存在）
+            adb uninstall org.fossify.calendar || echo "ℹ️ 应用未安装或卸载失败，继续执行"
+            
+            # 清理应用数据目录（如果存在）
+            adb shell rm -rf /data/data/org.fossify.calendar 2>/dev/null || echo "ℹ️ 应用数据目录不存在"
+            
+            # 额外等待确保清理完成
+            echo "⏳ 等待清理完成..."
+            sleep 2
+            
+            echo "📦 验证APK文件..."
+            ls -la app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            
+            echo "📲 安装APK文件..."
+            if adb install app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk; then
+              echo "✅ APK安装成功"
+            else
+              echo "❌ APK安装失败，尝试强制安装..."
+              if adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk; then
+                echo "✅ 强制安装成功"
+              else
+                echo "❌ 强制安装也失败"
+                echo "🔍 检查设备状态..."
+                adb shell df /data
+                adb shell pm list packages | grep org.fossify || echo "未找到相关包"
+                exit 1
+              fi
+            fi
+            
+            echo "✅ 验证应用安装..."
+            if adb shell pm list packages | grep org.fossify.calendar; then
+              echo "✅ 应用安装验证成功"
+            else
+              echo "❌ 应用安装验证失败"
+              echo "🔍 列出所有已安装的包..."
+              adb shell pm list packages | head -10
+              exit 1
+            fi
+            
+            echo "🕐 等待应用稳定..."
+            sleep 5
+            
+            echo "📸 捕获屏幕截图..."
+            adb shell screencap -p /sdcard/screenshot.png
+            adb pull /sdcard/screenshot.png calendar_running_screenshot.png
+            
+            echo "✅ 测试完成！"
 
       # ============================================
       # 阶段6: 结果总结和清理
