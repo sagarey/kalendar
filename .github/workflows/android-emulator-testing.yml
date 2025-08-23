@@ -62,7 +62,7 @@ jobs:
           echo "🎯 接下来将尝试缓存恢复..."
           echo "⚠️  注意: 如果缓存未命中，将进行完整的SDK/AVD初始化"
 
-      - name: Restore Android SDK Cache
+      - name: Restore SDK Cache
         id: restore-sdk-cache
         uses: actions/cache/restore@v4
         with:
