@@ -157,16 +157,38 @@ jobs:
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ APK构建成功 (${BUILD_DURATION}s)"
             
-            # 验证APK文件
-            APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
-            if [ -f "$APK_PATH" ]; then
-              APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-              echo "✅ APK文件生成: $APK_PATH ($APK_SIZE)"
-            else
-              echo "❌ APK文件未生成"
-              echo "🔍 构建输出检查:"
-              find app/build -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
-              ls -la app/build/outputs/ 2>/dev/null || echo "outputs目录不存在"
+            # 智能查找APK文件
+            echo "🔍 查找构建的APK文件..."
+            
+            # 尝试多种可能的APK路径
+            POSSIBLE_PATHS=(
+              "app/build/outputs/apk/foss/debug/calendar-14.apk"
+              "app/build/outputs/apk/foss/debug/app-foss-debug.apk"
+              "app/build/outputs/apk/foss/debug/*.apk"
+            )
+            
+            APK_FOUND=false
+            for path_pattern in "${POSSIBLE_PATHS[@]}"; do
+              for apk_file in $path_pattern; do
+                if [ -f "$apk_file" ]; then
+                  APK_PATH="$apk_file"
+                  APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+                  echo "✅ 找到APK文件: $APK_PATH ($APK_SIZE)"
+                  APK_FOUND=true
+                  break 2
+                fi
+              done
+            done
+            
+            if [ "$APK_FOUND" = false ]; then
+              echo "❌ 未找到APK文件"
+              echo "🔍 详细构建输出检查:"
+              echo "📁 outputs目录结构:"
+              find app/build/outputs -type f 2>/dev/null | head -10 || echo "outputs目录不存在或为空"
+              echo "📱 所有APK文件:"
+              find app/build -name "*.apk" 2>/dev/null | head -10 || echo "未找到任何APK文件"
+              echo "📂 foss/debug目录内容:"
+              ls -la app/build/outputs/apk/foss/debug/ 2>/dev/null || echo "foss/debug目录不存在"
               exit 1
             fi
           else
@@ -365,10 +387,26 @@ jobs:
         run: |
           echo "📱 安装预构建的APK..."
           
-          # APK应该已经在之前的步骤中构建完成
-          APK_PATH="app/build/outputs/apk/foss/debug/app-foss-debug.apk"
-          if [ ! -f "$APK_PATH" ]; then
-            echo "❌ 预构建的APK文件不存在: $APK_PATH"
+          # APK应该已经在之前的步骤中构建完成 - 智能查找
+          echo "🔍 查找预构建的APK文件..."
+          
+          POSSIBLE_PATHS=(
+            "app/build/outputs/apk/foss/debug/calendar-14.apk"
+            "app/build/outputs/apk/foss/debug/app-foss-debug.apk"
+          )
+          
+          APK_PATH=""
+          for path in "${POSSIBLE_PATHS[@]}"; do
+            if [ -f "$path" ]; then
+              APK_PATH="$path"
+              break
+            fi
+          done
+          
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ 预构建的APK文件不存在"
+            echo "🔍 查找任何APK文件:"
+            find app/build -name "*.apk" 2>/dev/null | head -5 || echo "未找到任何APK文件"
             echo "这不应该发生，APK应该在模拟器启动前就已构建"
             exit 1
           fi
