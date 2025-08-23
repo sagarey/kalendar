@@ -41,20 +41,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: false
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY || '' }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -73,16 +64,19 @@ jobs:
         continue-on-error: true
         with:
           path: |
-            ~/.android/sdk
-            ~/.android/avd_tmp
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v2
+            ~/.android
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v3
           restore-keys: |
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v2
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
             ${{ runner.os }}-android-sdk-
       
       - name: Cache Status Summary
         run: |
           echo "📋 缓存状态汇总:"
+          # Gradle 缓存 (setup-gradle 内置)
+          echo "  🏗️ Gradle: 由 setup-gradle 管理"
+          
           # Android SDK 缓存
           if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" == "true" ]; then
             echo "  ✅ Android SDK: 缓存命中"
@@ -91,7 +85,12 @@ jobs:
           fi
           
           # 显示缓存键信息
-          echo "  🔑 SDK 缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v2"
+          echo "  🔑 SDK 缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v3"
+          
+          # 检查实际路径
+          echo "📂 缓存路径检查:"
+          echo "  Gradle: $(ls -la ~/.gradle 2>/dev/null | wc -l) 个文件/目录"
+          echo "  Android: $(ls -la ~/.android 2>/dev/null | wc -l) 个文件/目录"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -126,10 +125,11 @@ jobs:
         with:
           path: |
             ~/.android/avd
-          key: ${{ runner.os }}-emulator-api${{ env.API_LEVEL }}-nexus6-v2
+          key: ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v3
           restore-keys: |
-            ${{ runner.os }}-emulator-api${{ env.API_LEVEL }}-
-            ${{ runner.os }}-emulator-
+            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v2
+            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-
+            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-
       
 
 
@@ -283,9 +283,15 @@ jobs:
       - name: Final Cache Status
         run: |
           echo "📊 最终缓存报告:"
-          echo "  Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新下载' }}"
-          echo "  模拟器AVD: ${{ steps.cache-emulator.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新创建' }}"
-          echo "  构建产物: ${{ steps.cache-build.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 首次构建' }}"
+          echo "  🏗️ Gradle: 由 setup-gradle 自动管理"
+          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新下载' }}"
+          echo "  🎮 模拟器AVD: ${{ steps.cache-emulator.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新创建' }}"
+          echo "  🔨 构建产物: ${{ steps.cache-build.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 首次构建' }}"
+          
+          # 显示缓存大小
+          echo "📏 缓存大小检查:"
+          echo "  ~/.gradle: $(du -sh ~/.gradle 2>/dev/null | cut -f1 || echo '未找到')"
+          echo "  ~/.android: $(du -sh ~/.android 2>/dev/null | cut -f1 || echo '未找到')"
 
       - name: Build and Install APK
         timeout-minutes: 12  # 构建超时控制
