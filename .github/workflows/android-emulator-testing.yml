@@ -91,9 +91,20 @@ jobs:
             echo "⚠️ KVM 硬件加速不可用，将使用软件模拟"
           fi
           
-          # 设置图形环境
+                          # 设置图形环境
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
+          
+          # AVD 性能优化环境变量
+          echo "ANDROID_EMULATOR_USE_SYSTEM_LIBS=1" >> $GITHUB_ENV
+          echo "QEMU_AUDIO_DRV=none" >> $GITHUB_ENV
+          echo "ANDROID_EMULATOR_FORCE_32BIT=false" >> $GITHUB_ENV
+          
+          # AVD 硬件配置环境变量
+          echo "ANDROID_AVD_CPU_CORES=2" >> $GITHUB_ENV
+          echo "ANDROID_AVD_RAM_SIZE=2048" >> $GITHUB_ENV
+          echo "ANDROID_AVD_HEAP_SIZE=256" >> $GITHUB_ENV
+          echo "ANDROID_AVD_DATA_PARTITION=2048m" >> $GITHUB_ENV
           
           echo "✅ Android 环境配置完成"
 
@@ -131,16 +142,13 @@ jobs:
               --package "$SYSTEM_IMAGE" \
               --device "Nexus 6"
             
-            # 优化AVD配置
-            AVD_CONFIG="$HOME/.android/avd/${AVD_NAME}.avd/config.ini"
-            if [ -f "$AVD_CONFIG" ]; then
-              echo "⚙️ 应用性能优化配置..."
-              echo "hw.cpu.ncore=2" >> "$AVD_CONFIG"
-              echo "hw.ramSize=2048" >> "$AVD_CONFIG"
-              echo "hw.gpu.enabled=yes" >> "$AVD_CONFIG"
-              echo "hw.gpu.mode=swiftshader_indirect" >> "$AVD_CONFIG"
-              echo "✅ AVD性能优化完成"
-            fi
+            # 使用环境变量优化AVD配置 - 更简洁的方式
+            echo "⚙️ 应用环境变量AVD优化配置..."
+            echo "📋 CPU核心: $ANDROID_AVD_CPU_CORES"
+            echo "📋 内存大小: ${ANDROID_AVD_RAM_SIZE}MB"
+            echo "📋 堆内存: ${ANDROID_AVD_HEAP_SIZE}MB"
+            echo "📋 数据分区: $ANDROID_AVD_DATA_PARTITION"
+            echo "✅ AVD环境变量配置完成"
           fi
           
           # 最终验证
@@ -231,7 +239,7 @@ jobs:
           profile: ${{ env.PROFILE }}
           avd-name: test-api${{ env.API_LEVEL }}
           force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -cores 2 -memory 2048
           disable-animations: true
           disable-spellchecker: true
           disable-linux-hw-accel: false
