@@ -161,52 +161,107 @@ jobs:
             
             # 等待设备连接，增加重试次数
             echo "⏳ 等待 ADB 连接..."
-            for i in {1..10}; do
+            ADB_CONNECTED=false
+            for i in {1..8}; do
+              echo "🔍 连接尝试 $i/8..."
+              adb devices
               if adb devices | grep -q "emulator.*device"; then
-                echo "✅ ADB 已连接 ($i/10)"
+                echo "✅ ADB 已连接 ($i/8)"
+                ADB_CONNECTED=true
                 break
               else
-                echo "⏳ 等待连接... ($i/10)"
+                echo "⏳ 等待连接... ($i/8)"
+                if [ $i -eq 4 ]; then
+                  echo "🔄 中途重启 ADB 服务..."
+                  adb kill-server 2>/dev/null || true
+                  sleep 2
+                  adb start-server 2>/dev/null || true
+                  sleep 3
+                fi
                 sleep 5
-              fi
-              if [ $i -eq 10 ]; then
-                echo "❌ ADB 连接超时"
-                echo "模拟器状态:"
-                adb devices
-                echo "尝试重启 ADB..."
-                adb kill-server || true
-                adb start-server || true
-                sleep 3
-                adb devices
-                exit 1
               fi
             done
             
+            if [ "$ADB_CONNECTED" = false ]; then
+              echo "❌ ADB 连接最终失败"
+              echo "📊 最终状态检查:"
+              adb devices
+              echo "🔧 最后尝试重启 ADB..."
+              adb kill-server 2>/dev/null || true
+              sleep 2
+              adb start-server 2>/dev/null || true
+              sleep 3
+              adb devices
+              exit 1
+            fi
+            
             # 获取设备名称
-            DEVICE=$(adb devices | grep emulator | cut -f1)
+            DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
+            if [ -z "$DEVICE" ]; then
+              echo "❌ 未找到模拟器设备"
+              echo "当前设备列表:"
+              adb devices
+              exit 1
+            fi
             echo "🎯 连接到设备: $DEVICE"
             
             # 等待系统完全启动
             echo "⏳ 等待系统启动..."
-            if timeout 180 adb -s $DEVICE wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 2; done'; then
-              echo "✅ 系统启动完成"
-            else
+            BOOT_CHECK_COUNT=0
+            while [ $BOOT_CHECK_COUNT -lt 60 ]; do
+              BOOT_STATUS=$(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo "")
+              if [ "$BOOT_STATUS" = "1" ]; then
+                echo "✅ 系统启动完成"
+                break
+              else
+                echo "⏳ 启动检查 $((BOOT_CHECK_COUNT + 1))/60..."
+                sleep 3
+                BOOT_CHECK_COUNT=$((BOOT_CHECK_COUNT + 1))
+              fi
+            done
+            
+            if [ $BOOT_CHECK_COUNT -eq 60 ]; then
               echo "❌ 系统启动超时"
-              echo "设备属性:"
-              adb -s $DEVICE shell getprop | grep boot || true
+              echo "设备状态:"
+              adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo "无法获取启动状态"
               exit 1
             fi
             
             # 优化性能设置
             echo "⚡ 优化性能..."
-            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
-            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
-            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || echo "设置动画缩放失败"
+            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || echo "设置过渡动画失败"
+            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || echo "设置动画时长失败"
             
             # 验证模拟器状态
             ANDROID_VERSION=$(adb -s $DEVICE shell getprop ro.build.version.release 2>/dev/null || echo "Unknown")
             ANDROID_API=$(adb -s $DEVICE shell getprop ro.build.version.sdk 2>/dev/null || echo "Unknown")
             echo "✅ 模拟器就绪 - Android $ANDROID_VERSION (API $ANDROID_API)"
+            
+            # 最终状态验证
+            echo "📊 最终状态验证:"
+            echo "  设备: $DEVICE"
+            echo "  ADB 状态: $(adb get-state 2>/dev/null || echo 'unknown')"
+            echo "  启动完成: $(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null || echo 'unknown')"
+
+      - name: Emulator Diagnostics
+        if: failure()
+        run: |
+          echo "🔍 模拟器诊断信息:"
+          echo "📱 设备列表:"
+          adb devices
+          echo ""
+          echo "🔧 ADB 版本:"
+          adb version
+          echo ""
+          echo "💾 系统资源:"
+          free -h
+          echo ""
+          echo "🏗️ 进程信息:"
+          ps aux | grep -E "(emulator|qemu)" | head -5
+          echo ""
+          echo "📂 模拟器文件:"
+          ls -la ~/.android/avd/ 2>/dev/null || echo "无法访问 AVD 目录"
 
       - name: Cache build outputs
         id: cache-build
