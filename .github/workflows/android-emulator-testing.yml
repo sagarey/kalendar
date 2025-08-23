@@ -106,7 +106,7 @@ jobs:
       # 阶段4: Android环境配置与AVD设置
       # ============================================
 
-      - name: Setup Android Environment & AVD
+      - name: Setup AVD
         timeout-minutes: 6
         run: |
           echo "🔧 配置Android环境与AVD..."
