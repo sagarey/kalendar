@@ -224,7 +224,7 @@ jobs:
           echo "📊 最终缓存报告:"
           echo "  🏗️ Gradle: 由 setup-gradle 自动管理"
           echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新下载' }}"
-          echo "  🎮 模拟器AVD: ${{ steps.cache-emulator.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新创建' }}"
+          echo "  🎮 模拟器AVD: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 新创建' }}"
           echo "  🔨 构建产物: ${{ steps.cache-build.outputs.cache-hit == 'true' && '✅ 已缓存' || '📥 首次构建' }}"
           
           # 显示缓存大小
@@ -232,18 +232,40 @@ jobs:
           echo "  ~/.gradle: $(du -sh ~/.gradle 2>/dev/null | cut -f1 || echo '未找到')"
           echo "  ~/.android: $(du -sh ~/.android 2>/dev/null | cut -f1 || echo '未找到')"
 
+      - name: Pre-build Check
+        run: |
+          echo "🔧 预构建检查..."
+          echo "📂 项目结构:"
+          ls -la app/src/
+          echo ""
+          echo "📋 可用构建任务:"
+          ./gradlew tasks --group="build" | grep -E "(assembleFoss|build)" || echo "无法获取构建任务"
+          echo ""
+          echo "🔍 构建变体检查:"
+          ls -la app/build.gradle* 2>/dev/null || echo "构建文件检查"
+
       - name: Build and Install APK
         timeout-minutes: 12  # 构建超时控制
         run: |
           echo "🔨 构建 APK..."
+          echo "📊 构建环境检查:"
+          echo "  Java: $(java -version 2>&1 | head -1)"
+          echo "  Gradle: $(./gradlew --version | head -3 | tail -1)"
+          echo "  内存: $(free -h | grep '^Mem:' | awk '{print $2}')"
+          echo "  磁盘: $(df -h . | tail -1 | awk '{print $4}') 可用"
+          
           BUILD_START_TIME=$(date +%s)
           
-          if ./gradlew assembleFossDebug --configure-on-demand --stacktrace --build-cache; then
+          echo "🚀 开始构建..."
+          if ./gradlew assembleFossDebug --stacktrace --info --build-cache; then
             BUILD_END_TIME=$(date +%s)
             BUILD_DURATION=$((BUILD_END_TIME - BUILD_START_TIME))
             echo "✅ 构建成功 (${BUILD_DURATION}s)"
           else
             echo "❌ 构建失败"
+            echo "📋 构建诊断信息:"
+            echo "  Gradle守护进程: $(./gradlew --status 2>/dev/null || echo '无法获取')"
+            echo "  构建缓存: $(ls -la ~/.gradle/caches/ 2>/dev/null | wc -l) 个缓存文件"
             exit 1
           fi
           
