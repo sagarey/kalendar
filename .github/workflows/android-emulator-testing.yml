@@ -125,7 +125,7 @@ jobs:
       # 阶段3: Android SDK 设置 (基于缓存优化)
       # ============================================
 
-      - name: Setup Android SDK
+      - name: Setup SDK
         if: steps.restore-sdk-cache.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
         with:
