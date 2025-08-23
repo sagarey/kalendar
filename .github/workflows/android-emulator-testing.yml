@@ -75,17 +75,16 @@ jobs:
             adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
             # 安装应用
-            adb install -r -t app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
+            adb install -r -t -g app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
 
             # 设置应用语言为中文
             adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
 
             # 启动应用
-            adb shell am start -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
-            sleep 3
+            adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
             
             # 截图
-            adb shell screencap -p > calendar_screenshot.png
+            adb exec-out screencap -p > calendar_screenshot.png
 
       - name: Upload Screenshot
         uses: actions/upload-artifact@v4
@@ -113,12 +112,18 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📸 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # 将截图转换为 base64 并嵌入到 Summary
           if [ -f "calendar_screenshot.png" ]; then
-            echo "![日历应用截图](data:image/png;base64,$(base64 -w 0 calendar_screenshot.png))" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "📋 **截图信息**: 显示当前月份的日历视图，包含中文界面和农历信息" >> $GITHUB_STEP_SUMMARY
+            BYTES=$(stat -c%s calendar_screenshot.png || echo 0)
+            if [ "$BYTES" -gt 800000 ]; then
+              echo "⚠️ 截图过大（$BYTES bytes），为避免 Summary 被截断不内嵌，建议下载附件查看。" >> $GITHUB_STEP_SUMMARY
+            else
+              # Markdown data URI（可能被 GitHub 清理）
+              echo "![日历应用截图](data:image/png;base64,$(base64 -w 0 calendar_screenshot.png))" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              # HTML 兜底（某些情况下 Markdown data URI 会被移除）
+              echo "<img alt=\"日历应用截图\" src=\"data:image/png;base64,$(base64 -w 0 calendar_screenshot.png)\" />" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "❌ 截图生成失败" >> $GITHUB_STEP_SUMMARY
           fi
