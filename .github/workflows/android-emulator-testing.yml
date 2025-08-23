@@ -25,17 +25,14 @@ jobs:
     env:
       # 优化 Gradle 性能 - ubuntu-latest 4核心配置
       GRADLE_OPTS: -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.configureondemand=true -Dorg.gradle.caching=true -Dkotlin.incremental=true -Dkotlin.incremental.android=true -Dkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs="-Xmx4g -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
-      # Android 相关环境变量 - 最新配置
-      ANDROID_COMPILE_SDK: 34
+      # Android 相关环境变量
       ANDROID_BUILD_TOOLS: 34.0.0
-      ANDROID_SDK_TOOLS: 9477386
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_AVD_HOME: /home/runner/.android/avd
-      NDK_HOME: /usr/local/lib/android/sdk/ndk/25.1.8937393
 
     steps:
       # ============================================
-      # 阶段1: 代码获取和缓存预检
+      # 阶段1: 代码获取
       # ============================================
       
       - name: Checkout
@@ -64,20 +61,7 @@ jobs:
           cache-read-only: false
 
       # ============================================
-      # 阶段3: 缓存恢复
-      # ============================================
-
-      - name: Restore Android Cache
-        id: restore-android-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ${{ env.ANDROID_HOME }}
-            ${{ env.ANDROID_AVD_HOME }}
-          key: ${{ runner.os }}-android-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v13
-
-      # ============================================
-      # 阶段4: Android SDK 和 AVD 统一设置
+      # 阶段3: Android SDK 设置
       # ============================================
 
       - name: Setup Android Environment
@@ -86,30 +70,18 @@ jobs:
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
       - name: Setup Android SDK
-        if: steps.restore-android-cache.outputs.cache-hit != 'true'
         uses: android-actions/setup-android@v3
         with:
           packages: tools platform-tools platforms;android-${{ env.API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }} emulator
 
-      - name: Setup AVD
-        if: steps.restore-android-cache.outputs.cache-hit != 'true'
-        timeout-minutes: 5
+      - name: Create AVD
         run: |
           SYSTEM_IMAGE="system-images;android-${{ env.API_LEVEL }};${{ env.TARGET }};${{ env.ARCH }}"
           AVD_NAME="test-api${{ env.API_LEVEL }}"
           echo "no" | avdmanager create avd --force --name "$AVD_NAME" --abi "${{ env.TARGET }}/${{ env.ARCH }}" --package "$SYSTEM_IMAGE" --device "${{ env.PROFILE }}"
 
-      - name: Save Android Cache
-        if: steps.restore-android-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ${{ env.ANDROID_HOME }}
-            ${{ env.ANDROID_AVD_HOME }}
-          key: ${{ runner.os }}-android-${{ env.API_LEVEL }}-${{ env.TARGET }}-${{ env.ARCH }}-v13
-
       # ============================================
-      # 阶段5: APK 构建 (包含依赖下载)
+      # 阶段4: APK 构建
       # ============================================
 
       - name: Build APK
@@ -117,7 +89,7 @@ jobs:
         run: ./gradlew clean assembleFossDebug --stacktrace --no-daemon
 
       # ============================================
-      # 阶段6: 模拟器测试 + 截图
+      # 阶段5: 模拟器测试 + 截图
       # ============================================
 
       - name: Android Emulator Testing with Screenshots
@@ -139,17 +111,11 @@ jobs:
           disable-linux-hw-accel: false
           script: adb uninstall org.fossify.calendar.debug || true && adb install -r app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk && adb shell pm list packages | grep org.fossify.calendar.debug && sleep 5 && adb shell screencap -p /sdcard/screenshot.png && adb pull /sdcard/screenshot.png calendar_running_screenshot.png
 
-      # ============================================
-      # 结果上传
-      # ============================================
-
-      - name: Upload Test Results and Screenshots
+      - name: Upload APK and Screenshot
         uses: actions/upload-artifact@v4
         with:
           name: android-test-results-${{ github.run_number }}
           path: |
             app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
             calendar_running_screenshot.png
-            build/reports/**/*
-            app/build/reports/**/*
-          retention-days: 7
+          retention-days: 3
