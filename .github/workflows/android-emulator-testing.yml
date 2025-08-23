@@ -112,7 +112,7 @@ jobs:
 
       - name: Generate Summary with Screenshot
         run: |
-          echo "# 📱 Android 日历应用测试结果" >> $GITHUB_STEP_SUMMARY
+          echo "# 🤖 Android 日历应用测试结果" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## ✅ 测试状态" >> $GITHUB_STEP_SUMMARY
           echo "- **构建状态**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
@@ -127,7 +127,6 @@ jobs:
           echo "- **内存配置**: 8GB" >> $GITHUB_STEP_SUMMARY
           echo "- **CPU 配置**: 4 核心" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "（Pages 部署完成后将在下方追加在线截图链接）" >> $GITHUB_STEP_SUMMARY
 
   deploy-pages:
     needs: build-and-test
@@ -145,8 +144,7 @@ jobs:
       - name: Append image link to Summary
         run: |
           URL="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
-          echo "## 🌐 在线截图" >> $GITHUB_STEP_SUMMARY
+          echo "## 📱 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "![日历应用截图](${URL})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 ${URL}" >> $GITHUB_STEP_SUMMARY
