@@ -58,45 +58,21 @@ jobs:
           ./gradlew dependencies --stacktrace
           echo "✅ 依赖下载完成"
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Cache Android SDK
         id: cache-android-sdk
         uses: actions/cache@v4
-        continue-on-error: true
         with:
           path: |
             ${{ env.ANDROID_HOME }}
             ~/.android
-          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v4
+          key: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v5
           restore-keys: |
-            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v3
+            ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v4
             ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-
             ${{ runner.os }}-android-sdk-
-      
-      - name: Cache Status Summary
-        run: |
-          echo "📋 缓存状态汇总:"
-          # Gradle 缓存 (setup-gradle 内置)
-          echo "  🏗️ Gradle: 由 setup-gradle 管理"
-          
-          # Android SDK 缓存
-          if [ "${{ steps.cache-android-sdk.outputs.cache-hit }}" == "true" ]; then
-            echo "  ✅ Android SDK: 缓存命中"
-          else
-            echo "  📥 Android SDK: 需要下载"
-          fi
-          
-          # 显示缓存键信息
-          echo "  🔑 SDK 缓存键: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v4"
-          
-          # 检查实际路径
-          echo "📂 缓存路径检查:"
-          echo "  Gradle: $(ls -la ~/.gradle 2>/dev/null | wc -l) 个文件/目录"
-          echo "  Android: $(ls -la ~/.android 2>/dev/null | wc -l) 个文件/目录"
-          echo "  ANDROID_HOME: ${ANDROID_HOME:-未设置}"
-          echo "  SDK路径: $(ls -la $ANDROID_HOME 2>/dev/null | wc -l) 个文件/目录"
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Setup Android Environment
         run: |
@@ -121,22 +97,40 @@ jobs:
           echo "QT_QPA_PLATFORM=offscreen" >> $GITHUB_ENV
           echo "DISPLAY=:99" >> $GITHUB_ENV
 
-      - name: Cache Android Emulator
-        id: cache-emulator
+      - name: Cache Android AVD
+        id: cache-avd
         uses: actions/cache@v4
-        continue-on-error: true
         with:
           path: |
-            ~/.android/avd
-          key: ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v3
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v4
           restore-keys: |
-            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v2
+            ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v3
             ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-
             ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-
       
 
 
-      - name: Start Android Emulator
+      # 根据官方文档，生成干净的AVD快照以加速后续启动
+      - name: Generate AVD snapshot for caching
+        if: steps.cache-avd.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: default
+          arch: x86_64
+          profile: Nexus 6
+          avd-name: test-api${{ env.API_LEVEL }}
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -memory 2048
+          disable-animations: true
+          disable-spellchecker: true
+          disable-linux-hw-accel: false
+          script: echo "Generated AVD snapshot for caching."
+
+      - name: Run Android Tests
         timeout-minutes: 10
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -151,65 +145,39 @@ jobs:
           disable-spellchecker: true
           disable-linux-hw-accel: false
           working-directory: ./
-          script: echo "📱 模拟器启动完成，准备测试..."
-
-      - name: Wait for Emulator and Setup
-        timeout-minutes: 8
-        run: |
-          echo "🔍 等待模拟器完全启动..."
-          sleep 20
-          
-          echo "📱 检查设备状态..."
-          adb devices
-          
-          # 等待设备连接
-          echo "⏳ 等待 ADB 连接..."
-          for i in 1 2 3 4 5 6 7 8 9 10; do
-            echo "连接尝试 $i/10..."
-            if adb devices | grep -q "emulator.*device"; then
-              echo "✅ ADB 已连接"
-              break
-            fi
-            
-            if [ $i -eq 5 ]; then
-              echo "🔄 重启 ADB 服务..."
-              adb kill-server 2>/dev/null || true
-              sleep 2
-              adb start-server 2>/dev/null || true
-              sleep 3
-            fi
-            
-            sleep 5
-          done
-          
-          # 获取设备
-          DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
-          if [ -z "$DEVICE" ]; then
-            echo "❌ 未找到模拟器设备"
+          script: |
+            echo "📱 运行Android测试..."
+            echo "🔍 检查设备状态..."
             adb devices
-            exit 1
-          fi
-          echo "📱 找到设备: $DEVICE"
-          
-          # 等待系统启动
-          echo "⏳ 等待系统完全启动..."
-          for i in $(seq 1 40); do
-            boot_status=$(adb -s $DEVICE shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
-            if [ "$boot_status" = "1" ]; then
-              echo "✅ 系统启动完成"
-              break
+            
+            # 获取设备
+            DEVICE=$(adb devices | grep emulator | cut -f1 | head -1)
+            if [ -z "$DEVICE" ]; then
+              echo "❌ 未找到模拟器设备"
+              adb devices
+              exit 1
             fi
-            echo "启动检查 $i/40..."
-            sleep 5
-          done
-          
-          # 优化性能
-          echo "⚡ 优化系统性能..."
-          adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
-          adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
-          adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
-          
-          echo "✅ 模拟器准备完成"
+            echo "📱 找到设备: $DEVICE"
+            
+            # 优化性能设置
+            echo "⚡ 优化系统性能..."
+            adb -s $DEVICE shell settings put global window_animation_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global transition_animation_scale 0 2>/dev/null || true
+            adb -s $DEVICE shell settings put global animator_duration_scale 0 2>/dev/null || true
+            
+            echo "✅ 模拟器准备完成，开始测试"
+
+      - name: Cache Status Summary
+        run: |
+          echo "📊 缓存状态报告:"
+          echo "  🏗️ Gradle 缓存: 由 setup-gradle 自动管理"
+          echo "  📱 Android SDK: ${{ steps.cache-android-sdk.outputs.cache-hit == 'true' && '✅ 缓存命中' || '📥 首次下载' }}"
+          echo "  🎮 模拟器 AVD: ${{ steps.cache-avd.outputs.cache-hit == 'true' && '✅ 快照恢复' || '📥 新建快照' }}"
+          echo ""
+          echo "🔑 缓存键信息:"
+          echo "  SDK: ${{ runner.os }}-android-sdk-${{ env.API_LEVEL }}-v5"
+          echo "  AVD: ${{ runner.os }}-avd-api${{ env.API_LEVEL }}-nexus6-default-v4"
+
 
       - name: Emulator Diagnostics
         if: failure()
