@@ -134,7 +134,7 @@ jobs:
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
             # AI 分析
-            cursor-agent -pf "提交AI分析" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+            cursor-agent -pf "前置的工作里，org.fossify.calendar.debug 应用已安装到虚拟机中，且当前打开的就是该应用界面，利用 mobile-mcp 工具连接到 Android 模拟器进行实时交互，获取界面元素信息和布局结构，结合截图生成简洁的图文分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
