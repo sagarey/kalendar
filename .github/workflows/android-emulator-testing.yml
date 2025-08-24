@@ -134,7 +134,7 @@ jobs:
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
             # AI 分析
-            cursor-agent -pf "床前明月光下一句是什么?" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+            cursor-agent -pf '床前明月光下一句是什么?' --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
