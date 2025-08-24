@@ -290,8 +290,12 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                                 canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
                             }
                         }
-                    } catch (e: Exception) {
-                        // 农历显示失败时静默忽略，不影响主要功能
+                    } catch (e: IllegalArgumentException) {
+                        // 农历计算参数错误时忽略，不影响主要功能
+                    } catch (e: ArithmeticException) {
+                        // 农历计算算术错误时忽略，不影响主要功能  
+                    } catch (e: NullPointerException) {
+                        // 农历数据为空时忽略，不影响主要功能
                     }
                     
                     dayVerticalOffsets.put(day.indexOnMonthView, (verticalOffset + textPaint.textSize * 2).toInt())
