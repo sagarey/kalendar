@@ -131,15 +131,75 @@ jobs:
       - name: Prepare Pages artifact
         run: |
           mkdir -p public
+          
+          # 复制截图和布局文件
           cp calendar_screenshot_en.png public/calendar_screenshot_en_${{ github.run_id }}.png
           cp calendar_screenshot.png public/calendar_screenshot_${{ github.run_id }}.png
           cp calendar_screenshot_dark.png public/calendar_screenshot_dark_${{ github.run_id }}.png
           cp calendar_layout_en.xml public/calendar_layout_en_${{ github.run_id }}.xml
           cp calendar_layout.xml public/calendar_layout_${{ github.run_id }}.xml
           cp calendar_layout_dark.xml public/calendar_layout_dark_${{ github.run_id }}.xml
-          cp cursor_analysis_report.md public/cursor_analysis_report_${{ github.run_id }}.md
           cp .github/workflows/placeholder_1080x1.png public/placeholder_1080x1_${{ github.run_id }}.png
-          touch public/.nojekyll
+          
+          # 创建 AI 分析报告页面
+          cat > public/analysis_${{ github.run_id }}.md << 'EOF'
+          ---
+          layout: default
+          title: "AI Quality Analysis Report #${{ github.run_id }}"
+          description: "AI-powered analysis of Android calendar app testing results"
+          date: ${{ github.run_number }}
+          ---
+          
+          # 🤖 AI Quality Analysis Report
+          
+          **Run ID:** ${{ github.run_id }}  
+          **Date:** $(date '+%Y-%m-%d %H:%M:%S UTC')  
+          **Workflow:** Android APK Build & Test
+          
+          ---
+          
+          EOF
+          
+          # 添加分析内容
+          cat cursor_analysis_report.md >> public/analysis_${{ github.run_id }}.md
+          
+          # 复制 Jekyll 配置
+          cp _config.yml public/
+          
+          # 创建主页
+          cat > public/index.md << 'EOF'
+          ---
+          layout: default
+          title: "Kalendar - Android Calendar App"
+          ---
+          
+          # 📱 Kalendar Android Calendar App
+          
+          ## 🤖 Latest AI Analysis
+          
+          [📊 View Latest Analysis Report](analysis_${{ github.run_id }}.html)
+          
+          ## 📸 Screenshots
+          
+          ### English Interface
+          ![English Interface](calendar_screenshot_en_${{ github.run_id }}.png)
+          
+          ### Chinese Interface  
+          ![Chinese Interface](calendar_screenshot_${{ github.run_id }}.png)
+          
+          ### Dark Mode
+          ![Dark Mode](calendar_screenshot_dark_${{ github.run_id }}.png)
+          
+          ## 📄 Technical Details
+          
+          - [English Layout XML](calendar_layout_en_${{ github.run_id }}.xml)
+          - [Chinese Layout XML](calendar_layout_${{ github.run_id }}.xml)  
+          - [Dark Mode Layout XML](calendar_layout_dark_${{ github.run_id }}.xml)
+          
+          ---
+          
+          *Generated automatically by GitHub Actions*
+          EOF
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -186,16 +246,20 @@ jobs:
           URL_LAYOUT_EN="${{ steps.deployment.outputs.page_url }}calendar_layout_en_${{ github.run_id }}.xml"
           URL_LAYOUT_ZH="${{ steps.deployment.outputs.page_url }}calendar_layout_${{ github.run_id }}.xml"
           URL_LAYOUT_DARK="${{ steps.deployment.outputs.page_url }}calendar_layout_dark_${{ github.run_id }}.xml"
-          URL_ANALYSIS="${{ steps.deployment.outputs.page_url }}cursor_analysis_report_${{ github.run_id }}.md"
+          URL_ANALYSIS="${{ steps.deployment.outputs.page_url }}analysis_${{ github.run_id }}.html"
+          URL_MAIN="${{ steps.deployment.outputs.page_url }}"
           URL_PH="${{ steps.deployment.outputs.page_url }}placeholder_1080x1_${{ github.run_id }}.png"
-          echo "## 🤖 AI 分析报告" >> $GITHUB_STEP_SUMMARY
+          
+          echo "## 🤖 AI Quality Analysis Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📊 [查看完整的 AI 分析报告](${URL_ANALYSIS})" >> $GITHUB_STEP_SUMMARY
+          echo "🌟 [**查看完整的 AI 分析报告**](${URL_ANALYSIS}) (Markdown 渲染版本)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📱 应用截图与布局信息" >> $GITHUB_STEP_SUMMARY
+          echo "🏠 [**项目主页**](${URL_MAIN}) - 包含所有截图和技术细节" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 英文界面 | 中文界面 | 深色模式 |  |  |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> | <img alt=\"占位\" src=\"${URL_PH}\" style=\"width:100%;height:1px;opacity:0;\" /> | <img alt=\"占位\" src=\"${URL_PH}\" style=\"width:100%;height:1px;opacity:0;\" /> |" >> $GITHUB_STEP_SUMMARY
-          echo "| <a href=\"${URL_LAYOUT_EN}\" target=\"_blank\">📄 布局信息</a> | <a href=\"${URL_LAYOUT_ZH}\" target=\"_blank\">📄 布局信息</a> | <a href=\"${URL_LAYOUT_DARK}\" target=\"_blank\">📄 布局信息</a> | | |" >> $GITHUB_STEP_SUMMARY
+          echo "## 📱 应用截图预览" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 英文界面 | 中文界面 | 深色模式 |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> |" >> $GITHUB_STEP_SUMMARY
+          echo "| [📄 布局信息](${URL_LAYOUT_EN}) | [📄 布局信息](${URL_LAYOUT_ZH}) | [📄 布局信息](${URL_LAYOUT_DARK}) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

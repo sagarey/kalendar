@@ -1,0 +1,44 @@
+# GitHub Pages Jekyll 配置
+title: Kalendar - Android Calendar App
+description: AI-powered quality analysis for Android calendar application
+url: "https://sagarey.github.io"
+baseurl: "/kalendar"
+
+# Markdown 设置
+markdown: GFM
+highlighter: rouge
+gfm_quirks: paragraph_end
+
+# 插件
+plugins:
+  - jekyll-github-metadata
+  - jekyll-sitemap
+
+# 主题
+theme: minima
+
+# 包含的文件
+include:
+  - "*.md"
+  - "*.html"
+  - "*.png"
+  - "*.xml"
+
+# 排除的文件
+exclude:
+  - .git/
+  - .github/
+  - README.md
+  - LICENSE
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
+  - vendor/
+
+# 默认设置
+defaults:
+  - scope:
+      path: ""
+      type: "pages"
+    values:
+      layout: "default"
