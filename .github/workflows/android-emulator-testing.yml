@@ -58,9 +58,6 @@ jobs:
         run: |
           # 全局安装 mobile-mcp
           npm install -g @mobilenext/mobile-mcp@latest
-          
-          # 验证安装
-          npx @mobilenext/mobile-mcp --version || echo "mobile-mcp 安装完成"
 
       - name: Build APK with Optimizations
         run: |
