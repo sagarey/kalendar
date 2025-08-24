@@ -130,7 +130,7 @@ jobs:
           echo "- **CPU 配置**: 4 核心" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-  deploy-pages:
+  publish-report:
     name: 验收报告
     needs: build-and-test
     runs-on: ubuntu-latest
