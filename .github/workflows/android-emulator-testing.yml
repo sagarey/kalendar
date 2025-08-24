@@ -87,16 +87,19 @@ jobs:
             adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
             sleep 2
             adb exec-out screencap -p > calendar_screenshot_en.png
+            adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_en.xml
 
             # 设置应用语言为中文并截图
             adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
             sleep 2
             adb exec-out screencap -p > calendar_screenshot.png
+            adb exec-out uiautomator dump /dev/fd/1 > calendar_layout.xml
 
             # 切换到暗黑模式并截图
             adb shell cmd uimode night yes
             sleep 2
             adb exec-out screencap -p > calendar_screenshot_dark.png
+            adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
       - name: Prepare Pages artifact
         run: |
@@ -104,6 +107,9 @@ jobs:
           cp calendar_screenshot_en.png public/calendar_screenshot_en_${{ github.run_id }}.png
           cp calendar_screenshot.png public/calendar_screenshot_${{ github.run_id }}.png
           cp calendar_screenshot_dark.png public/calendar_screenshot_dark_${{ github.run_id }}.png
+          cp calendar_layout_en.xml public/calendar_layout_en_${{ github.run_id }}.xml
+          cp calendar_layout.xml public/calendar_layout_${{ github.run_id }}.xml
+          cp calendar_layout_dark.xml public/calendar_layout_dark_${{ github.run_id }}.xml
           cp .github/workflows/placeholder_1080x1.png public/placeholder_1080x1_${{ github.run_id }}.png
           touch public/.nojekyll
 
@@ -149,10 +155,14 @@ jobs:
           URL_EN="${{ steps.deployment.outputs.page_url }}calendar_screenshot_en_${{ github.run_id }}.png"
           URL_ZH="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
           URL_DARK="${{ steps.deployment.outputs.page_url }}calendar_screenshot_dark_${{ github.run_id }}.png"
+          URL_LAYOUT_EN="${{ steps.deployment.outputs.page_url }}calendar_layout_en_${{ github.run_id }}.xml"
+          URL_LAYOUT_ZH="${{ steps.deployment.outputs.page_url }}calendar_layout_${{ github.run_id }}.xml"
+          URL_LAYOUT_DARK="${{ steps.deployment.outputs.page_url }}calendar_layout_dark_${{ github.run_id }}.xml"
           URL_PH="${{ steps.deployment.outputs.page_url }}placeholder_1080x1_${{ github.run_id }}.png"
-          echo "## 📱 应用截图" >> $GITHUB_STEP_SUMMARY
+          echo "## 📱 应用截图与布局信息" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 英文界面 | 中文界面 | 深色模式 |  |  |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
           echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> | <img alt=\"占位\" src=\"${URL_PH}\" style=\"width:100%;height:1px;opacity:0;\" /> | <img alt=\"占位\" src=\"${URL_PH}\" style=\"width:100%;height:1px;opacity:0;\" /> |" >> $GITHUB_STEP_SUMMARY
+          echo "| [📄 布局信息](${URL_LAYOUT_EN}) | [📄 布局信息](${URL_LAYOUT_ZH}) | [📄 布局信息](${URL_LAYOUT_DARK}) | | |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
