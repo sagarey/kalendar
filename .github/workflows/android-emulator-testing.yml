@@ -120,7 +120,6 @@ jobs:
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
             # AI 分析
-            cursor-agent -pf "使用 mobile-mcp 工具查看可用的 Android 设备" --output-format text
             cursor-agent -pf "作为Android应用质量专家，请用中文分析这个日历应用的测试结果：
 
             **重要：你现在有mobile-mcp工具可用，可以直接与Android模拟器交互！**
