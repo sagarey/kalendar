@@ -327,6 +327,9 @@ jobs:
         run: |
           mkdir -p public
           
+          # 获取当前时间
+          CURRENT_TIME=$(date '+%Y年%m月%d日 %H:%M:%S')
+          
           # 复制截图和布局文件
           cp calendar_screenshot_en.png public/calendar_screenshot_en_${{ github.run_id }}.png
           cp calendar_screenshot.png public/calendar_screenshot_${{ github.run_id }}.png
@@ -337,7 +340,7 @@ jobs:
           cp .github/workflows/placeholder_1080x1.png public/placeholder_1080x1_${{ github.run_id }}.png
           
           # 创建 AI 分析报告页面 (固定文件名)
-          cat > public/ai_analysis.html << 'EOF'
+          cat > public/ai_analysis.html << EOF
           <!DOCTYPE html>
           <html lang="zh-CN">
           <head>
@@ -376,7 +379,7 @@ jobs:
                   
                   <div class="meta">
                       <strong>运行编号:</strong> ${{ github.run_id }}<br>
-                      <strong>生成时间:</strong> $(date '+%Y年%m月%d日 %H:%M:%S UTC')<br>
+                      <strong>生成时间:</strong> ${CURRENT_TIME}<br>
                       <strong>工作流:</strong> Android Emulator Testing<br>
                       <strong>分析引擎:</strong> Cursor AI Agent
                   </div>
@@ -418,7 +421,7 @@ jobs:
           cp _config.yml public/
           
           # 创建中文主页 HTML
-          cat > public/index.html << 'EOF'
+          cat > public/index.html << EOF
           <!DOCTYPE html>
           <html lang="zh-CN">
           <head>
@@ -496,7 +499,7 @@ jobs:
                   
                   <div class="footer">
                       <p>🚀 由 GitHub Actions 自动生成</p>
-                      <p>运行编号: ${{ github.run_id }} | 生成时间: $(date '+%Y年%m月%d日 %H:%M:%S')</p>
+                      <p>运行编号: ${{ github.run_id }} | 生成时间: ${CURRENT_TIME}</p>
                       <p>💡 基于 AI 智能分析，持续改进应用质量</p>
                   </div>
               </div>
