@@ -110,7 +110,7 @@ jobs:
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
-          cursor-agent -p "分析这个Android日历应用的测试结果。检查截图文件(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)，评估应用的UI质量、中文本地化效果和暗黑模式支持。请提供简洁的 markdown 分析报告。" --model claude-4-sonnet --output-format text
+          cursor-agent -p "分析这个Android日历应用的测试结果。检查截图文件(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)，评估应用的UI质量、中文本地化效果和暗黑模式支持。请提供简洁的 markdown 分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
@@ -121,6 +121,7 @@ jobs:
           cp calendar_layout_en.xml public/calendar_layout_en_${{ github.run_id }}.xml
           cp calendar_layout.xml public/calendar_layout_${{ github.run_id }}.xml
           cp calendar_layout_dark.xml public/calendar_layout_dark_${{ github.run_id }}.xml
+          cp cursor_analysis_report.md public/cursor_analysis_report_${{ github.run_id }}.md
           cp .github/workflows/placeholder_1080x1.png public/placeholder_1080x1_${{ github.run_id }}.png
           touch public/.nojekyll
 
@@ -169,7 +170,12 @@ jobs:
           URL_LAYOUT_EN="${{ steps.deployment.outputs.page_url }}calendar_layout_en_${{ github.run_id }}.xml"
           URL_LAYOUT_ZH="${{ steps.deployment.outputs.page_url }}calendar_layout_${{ github.run_id }}.xml"
           URL_LAYOUT_DARK="${{ steps.deployment.outputs.page_url }}calendar_layout_dark_${{ github.run_id }}.xml"
+          URL_ANALYSIS="${{ steps.deployment.outputs.page_url }}cursor_analysis_report_${{ github.run_id }}.md"
           URL_PH="${{ steps.deployment.outputs.page_url }}placeholder_1080x1_${{ github.run_id }}.png"
+          echo "## 🤖 AI 分析报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📊 [查看完整的 AI 分析报告](${URL_ANALYSIS})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📱 应用截图与布局信息" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 英文界面 | 中文界面 | 深色模式 |  |  |" >> $GITHUB_STEP_SUMMARY
