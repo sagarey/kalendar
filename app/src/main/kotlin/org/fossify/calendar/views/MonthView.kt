@@ -269,11 +269,11 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                             val lunarText = lunarDate.getDisplayText()
                             if (lunarText.isNotEmpty()) {
                                 val lunarPaint = Paint(textPaint).apply {
-                                    textSize = textPaint.textSize * 0.6f
+                                    textSize = textPaint.textSize * 0.75f  // 提升字体大小从0.6f到0.75f
                                     color = if (day.isThisMonth) {
-                                        textColor.adjustAlpha(MEDIUM_ALPHA)
+                                        textColor.adjustAlpha(0.8f)  // 提高透明度从MEDIUM_ALPHA到0.8f
                                     } else {
-                                        textColor.adjustAlpha(LOWER_ALPHA)
+                                        textColor.adjustAlpha(0.6f)  // 提高透明度从LOWER_ALPHA到0.6f
                                     }
                                 }
                                 val lunarTextY = textY + lunarPaint.textSize + (lunarPaint.textSize * 0.2f)
