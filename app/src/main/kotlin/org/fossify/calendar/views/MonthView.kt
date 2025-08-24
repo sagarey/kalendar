@@ -30,6 +30,12 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
         private const val BG_CORNER_RADIUS = 8f
         private const val EVENT_DOT_COLUMN_COUNT = 3
         private const val EVENT_DOT_ROW_COUNT = 1
+        
+        // 农历文字相关常量
+        private const val LUNAR_TEXT_SIZE_RATIO = 0.75f
+        private const val LUNAR_TEXT_ALPHA_CURRENT_MONTH = 0.8f
+        private const val LUNAR_TEXT_ALPHA_OTHER_MONTH = 0.6f
+        private const val LUNAR_TEXT_SPACING_RATIO = 0.2f
     }
 
     private var textPaint: Paint
@@ -269,19 +275,27 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                             val lunarText = lunarDate.getDisplayText()
                             if (lunarText.isNotEmpty()) {
                                 val lunarPaint = Paint(textPaint).apply {
-                                    textSize = textPaint.textSize * 0.6f
+                                    // 提升字体大小从0.6f到0.75f
+                                    textSize = textPaint.textSize * LUNAR_TEXT_SIZE_RATIO
                                     color = if (day.isThisMonth) {
-                                        textColor.adjustAlpha(MEDIUM_ALPHA)
+                                        // 提高透明度从MEDIUM_ALPHA到0.8f
+                                        textColor.adjustAlpha(LUNAR_TEXT_ALPHA_CURRENT_MONTH)
                                     } else {
-                                        textColor.adjustAlpha(LOWER_ALPHA)
+                                        // 提高透明度从LOWER_ALPHA到0.6f
+                                        textColor.adjustAlpha(LUNAR_TEXT_ALPHA_OTHER_MONTH)
                                     }
                                 }
-                                val lunarTextY = textY + lunarPaint.textSize + (lunarPaint.textSize * 0.2f)
+                                val lunarTextY = textY + lunarPaint.textSize + 
+                                    (lunarPaint.textSize * LUNAR_TEXT_SPACING_RATIO)
                                 canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
                             }
                         }
-                    } catch (e: Exception) {
-                        // 农历显示失败时静默忽略，不影响主要功能
+                    } catch (e: IllegalArgumentException) {
+                        // 农历计算参数错误时忽略，不影响主要功能
+                    } catch (e: ArithmeticException) {
+                        // 农历计算算术错误时忽略，不影响主要功能  
+                    } catch (e: NullPointerException) {
+                        // 农历数据为空时忽略，不影响主要功能
                     }
                     
                     dayVerticalOffsets.put(day.indexOnMonthView, (verticalOffset + textPaint.textSize * 2).toInt())
