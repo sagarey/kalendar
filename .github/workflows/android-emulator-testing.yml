@@ -44,6 +44,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
       - name: Build APK with Optimizations
         run: |
           # KVM 一步到位配置
@@ -100,6 +105,12 @@ jobs:
             sleep 2
             adb exec-out screencap -p > calendar_screenshot_dark.png
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
+
+      - name: Run Cursor Agent Analysis
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          cursor-agent -p "分析这个Android日历应用的测试结果。检查截图文件(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)，评估应用的UI质量、中文本地化效果和暗黑模式支持。请提供简洁的 markdown 分析报告。" --model claude-4-sonnet --output-format text
 
       - name: Prepare Pages artifact
         run: |
