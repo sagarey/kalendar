@@ -24,6 +24,7 @@ env:
 
 jobs:
   build-and-test:
+    name: 构建测试
     runs-on: ubuntu-latest
     timeout-minutes: 15  # 优化后应该更快
     
@@ -130,6 +131,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
   deploy-pages:
+    name: 验收报告
     needs: build-and-test
     runs-on: ubuntu-latest
     environment:
