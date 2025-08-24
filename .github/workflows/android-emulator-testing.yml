@@ -82,31 +82,25 @@ jobs:
             # 安装应用
             adb install -r -t -g app/build/outputs/apk/foss/debug/kalendar-app-foss-debug.apk
 
-            # 设置应用语言为中文
-            adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
-
             # 启动应用并截图
             adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
-            sleep 2
+            sleep 1
+            adb exec-out screencap -p > calendar_screenshot_en.png
+
+            # 设置应用语言为中文并截图
+            adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
+            sleep 1
             adb exec-out screencap -p > calendar_screenshot.png
 
             # 切换到暗黑模式并截图
             adb shell cmd uimode night yes
-            sleep 2
+            sleep 1
             adb exec-out screencap -p > calendar_screenshot_dark.png
-
-      - name: Upload Screenshots
-        uses: actions/upload-artifact@v4
-        with:
-          name: calendar-screenshots-${{ github.run_number }}
-          path: |
-            calendar_screenshot.png
-            calendar_screenshot_dark.png
-          compression-level: 0
 
       - name: Prepare Pages artifact
         run: |
           mkdir -p public
+          cp calendar_screenshot_en.png public/calendar_screenshot_en_${{ github.run_id }}.png
           cp calendar_screenshot.png public/calendar_screenshot_${{ github.run_id }}.png
           cp calendar_screenshot_dark.png public/calendar_screenshot_dark_${{ github.run_id }}.png
           touch public/.nojekyll
@@ -149,11 +143,23 @@ jobs:
         uses: actions/deploy-pages@v4
       - name: Append image link to Summary
         run: |
-          URL="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
+          URL_EN="${{ steps.deployment.outputs.page_url }}calendar_screenshot_en_${{ github.run_id }}.png"
+          URL_ZH="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
+          URL_DARK="${{ steps.deployment.outputs.page_url }}calendar_screenshot_dark_${{ github.run_id }}.png"
           echo "## 📱 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "<img alt=\"日历应用截图\" src=\"${URL}\" width=\"33%\" />" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          URL_DARK="${{ steps.deployment.outputs.page_url }}calendar_screenshot_dark_${{ github.run_id }}.png"
-          echo "<img alt=\"日历应用截图（深色）\" src=\"${URL_DARK}\" width=\"33%\" />" >> $GITHUB_STEP_SUMMARY
+          echo "<div style=\"display:flex;gap:6px;align-items:flex-start;\">" >> $GITHUB_STEP_SUMMARY
+          echo "  <div style=\"width:30%\">" >> $GITHUB_STEP_SUMMARY
+          echo "    <img alt=\"日历应用截图（英文）\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" />" >> $GITHUB_STEP_SUMMARY
+          echo "    <div style=\"font-size:12px;color:#666;margin-top:4px;text-align:center;\">英文界面</div>" >> $GITHUB_STEP_SUMMARY
+          echo "  </div>" >> $GITHUB_STEP_SUMMARY
+          echo "  <div style=\"width:30%\">" >> $GITHUB_STEP_SUMMARY
+          echo "    <img alt=\"日历应用截图（中文）\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" />" >> $GITHUB_STEP_SUMMARY
+          echo "    <div style=\"font-size:12px;color:#666;margin-top:4px;text-align:center;\">中文界面</div>" >> $GITHUB_STEP_SUMMARY
+          echo "  </div>" >> $GITHUB_STEP_SUMMARY
+          echo "  <div style=\"width:30%\">" >> $GITHUB_STEP_SUMMARY
+          echo "    <img alt=\"日历应用截图（深色）\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" />" >> $GITHUB_STEP_SUMMARY
+          echo "    <div style=\"font-size:12px;color:#666;margin-top:4px;text-align:center;\">深色模式</div>" >> $GITHUB_STEP_SUMMARY
+          echo "  </div>" >> $GITHUB_STEP_SUMMARY
+          echo "</div>" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
