@@ -36,11 +36,12 @@ jobs:
         run: |
           # 添加 AI 分析预设任务
           echo "" >> .cursor/rules/kalendar-cursor-rule.mdc
-          echo "### 提交分析任务" >> .cursor/rules/kalendar-cursor-rule.mdc
-          echo "  - 使用 mobile-mcp 工具连接到 Android 模拟器进行实时交互，获取实时的界面元素信息和布局结构" >> .cursor/rules/kalendar-cursor-rule.mdc
-          echo "  - 重点场景、步骤可以截图，并集合无障碍的布局信息等给出截图的分析" >> .cursor/rules/kalendar-cursor-rule.mdc
-          echo "  - 评估提交信息中提到的功能实现" >> .cursor/rules/kalendar-cursor-rule.mdc
-          echo "  - 生成专业的 markdown 格式中文质量分析报告" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "## 预设任务列表" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "### 提交AI分析" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "- 使用 mobile-mcp 工具连接到 Android 模拟器进行实时交互，获取界面元素信息和布局结构" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "- 重点场景、步骤可以截图，并集合无障碍信息等给出分析" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "- 着重评估、测试提交信息中提到的功能实现" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "- 生成图文混排的专业 markdown 格式中文测试分析报告" >> .cursor/rules/kalendar-cursor-rule.mdc
           echo "" >> .cursor/rules/kalendar-cursor-rule.mdc
 
       - name: Setup Java
@@ -131,33 +132,7 @@ jobs:
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
             # AI 分析
-            cursor-agent -pf '作为Android应用质量专家，请用中文分析这个日历应用的测试结果：
-
-            **重要：你现在有mobile-mcp工具可用，可以直接与Android模拟器交互！**
-
-            **分析内容：**
-            1. 使用mobile-mcp工具连接到当前运行的Android模拟器
-            2. 截取当前应用界面并分析UI设计质量
-            3. 通过mobile-mcp获取实时的界面元素信息和布局结构
-            4. 重点场景、步骤可以截图，并集合无障碍的布局信息等给出截图的分析
-            5. 检查本地文件中的截图(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)
-            6. 评估中文本地化效果和农历功能实现
-            7. 检查暗黑模式支持的完整性
-            8. 评估多语言支持(中英文)的质量
-            9. 测试应用的基本交互功能(如果可能的话)
-
-            **输出要求：**
-            - 全程使用中文回答
-            - 采用专业但易懂的表达方式
-            - 包含具体的技术指标和文件大小分析
-            - 结合mobile-mcp的实时交互分析
-            - 提供实用的UI/UX改进建议
-            - 给出1-10分的质量评分和详细评分理由
-            - 突出应用的技术亮点和用户体验优势
-            - 混搭关键截图、emoji 等，优化格式，让报告更生动
-            - 如果mobile-mcp可用，展示实时交互测试结果
-
-            请生成一份专业的中文质量分析 markdown 格式的报告。' --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+            cursor-agent -pf "提交AI分析" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
