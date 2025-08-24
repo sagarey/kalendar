@@ -91,7 +91,6 @@ jobs:
           
       - name: Create and Start Android Emulator
         env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           # 模拟器环境变量 - 与原配置对齐
           ANDROID_EMULATOR_USE_SYSTEM_LIBS: 1
           QT_QPA_PLATFORM: offscreen
@@ -176,7 +175,7 @@ jobs:
         run: |
           # AI 分析
           echo "开始 AI 分析..."
-          cursor-agent -pf "提交AI分析" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+          cursor-agent -pf "床前明月光下一句是?" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
           echo "✅ AI 分析完成"
 
       - name: Stop Emulator
