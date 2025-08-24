@@ -84,17 +84,17 @@ jobs:
 
             # 启动应用并截图
             adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
-            sleep 1
+            sleep 2
             adb exec-out screencap -p > calendar_screenshot_en.png
 
             # 设置应用语言为中文并截图
             adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
-            sleep 1
+            sleep 2
             adb exec-out screencap -p > calendar_screenshot.png
 
             # 切换到暗黑模式并截图
             adb shell cmd uimode night yes
-            sleep 1
+            sleep 2
             adb exec-out screencap -p > calendar_screenshot_dark.png
 
       - name: Prepare Pages artifact
@@ -149,6 +149,6 @@ jobs:
           echo "## 📱 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 英文界面 | 中文界面 | 深色模式 |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
+          echo "| :---: | :---: | :---: |" >> $GITHUB_STEP_SUMMARY
           echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
