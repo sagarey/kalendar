@@ -1,4 +1,4 @@
-name: Android APK Build and Test
+name: Android Emulator Testing
 
 on:
   workflow_dispatch:
@@ -154,7 +154,7 @@ jobs:
           
           **Run ID:** ${{ github.run_id }}  
           **Date:** $(date '+%Y-%m-%d %H:%M:%S UTC')  
-          **Workflow:** Android APK Build and Test
+          **Workflow:** Android Emulator Testing
           
           ---
           
