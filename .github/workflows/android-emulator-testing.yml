@@ -103,7 +103,7 @@ jobs:
           cp calendar_screenshot_en.png public/calendar_screenshot_en_${{ github.run_id }}.png
           cp calendar_screenshot.png public/calendar_screenshot_${{ github.run_id }}.png
           cp calendar_screenshot_dark.png public/calendar_screenshot_dark_${{ github.run_id }}.png
-          cp placeholder_1x1080.png public/placeholder_1x1080_${{ github.run_id }}.png
+          cp .github/workflows/placeholder_1x1080.png public/placeholder_1x1080_${{ github.run_id }}.png
           touch public/.nojekyll
 
       - name: Upload Pages artifact
