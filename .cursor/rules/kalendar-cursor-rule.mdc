@@ -3,4 +3,4 @@ alwaysApply: true
 ---
 1. 使用中文回答问题
 2. github actions runner 默认是 4核/16GB
-3. 保持 Android 模拟器 API 34 
+3. 保持 Android 模拟器 API 34
