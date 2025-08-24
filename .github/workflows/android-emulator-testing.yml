@@ -111,6 +111,8 @@ jobs:
           
           # 启动模拟器（后台运行） - 参数与原配置完全对齐
           echo "正在启动 Android 模拟器..."
+          echo "模拟器启动参数: -avd test_emulator -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -netdelay none -netspeed full -cores 4 -memory 8192 -camera-back none -camera-front none -wipe-data"
+          
           nohup $ANDROID_HOME/emulator/emulator -avd test_emulator \
             -no-window -no-snapshot -no-audio -no-boot-anim \
             -gpu swiftshader_indirect -netdelay none -netspeed full \
@@ -118,16 +120,65 @@ jobs:
             -camera-back none -camera-front none \
             -wipe-data > emulator.log 2>&1 &
           
+          EMULATOR_PID=$!
+          echo "模拟器进程已启动，PID: $EMULATOR_PID"
+          
+          # 显示模拟器启动日志（前几行）
+          sleep 3
+          echo "=== 模拟器启动日志（前20行）==="
+          head -20 emulator.log || echo "暂无日志"
+          
           # 等待模拟器启动并准备就绪
           echo "等待模拟器启动完成..."
-          timeout 300 adb wait-for-device
+          echo "超时设置: 60秒"
+          timeout 60 adb wait-for-device
+          
+          # 检查 adb wait-for-device 的结果
+          if [ $? -eq 0 ]; then
+            echo "✅ 设备已检测到"
+            adb devices -l
+          else
+            echo "❌ 等待设备超时，显示更多诊断信息..."
+            echo "=== 完整模拟器日志 ==="
+            cat emulator.log
+            echo "=== 进程状态 ==="
+            ps aux | grep emulator
+            exit 1
+          fi
           
           # 等待系统完全启动
           echo "等待系统启动完成..."
+          BOOT_TIMEOUT=60
+          BOOT_COUNT=0
           while [ "`adb shell getprop sys.boot_completed 2>/dev/null`" != "1" ]; do
-            echo "系统启动中..."
+            BOOT_COUNT=$((BOOT_COUNT + 1))
+            echo "系统启动中... (第${BOOT_COUNT}次检查)"
+            
+            # 显示启动进度
+            BOOT_PROGRESS=$(adb shell getprop sys.boot_progress.system_run 2>/dev/null || echo "unknown")
+            echo "启动进度: $BOOT_PROGRESS"
+            
             sleep 5
+            
+            # 防止无限循环
+            if [ $BOOT_COUNT -gt $((BOOT_TIMEOUT / 5)) ]; then
+              echo "❌ 系统启动超时，显示诊断信息..."
+              echo "=== 系统属性 ==="
+              adb shell getprop | grep boot
+              echo "=== 最新模拟器日志 ==="
+              tail -30 emulator.log
+              exit 1
+            fi
           done
+          
+          echo "✅ 系统启动完成"
+          
+          # 显示系统信息
+          echo "=== 系统信息 ==="
+          echo "Android 版本: $(adb shell getprop ro.build.version.release)"
+          echo "API 级别: $(adb shell getprop ro.build.version.sdk)"
+          echo "设备型号: $(adb shell getprop ro.product.model)"
+          echo "CPU 架构: $(adb shell getprop ro.product.cpu.abi)"
           
           # 禁用动画以提高测试稳定性
           echo "配置模拟器设置..."
@@ -139,6 +190,9 @@ jobs:
           adb shell settings put secure spell_checker_enabled 0
           
           echo "✅ Android 模拟器启动完成并已配置"
+          echo "模拟器进程 PID: $EMULATOR_PID"
+          echo "可用设备列表:"
+          adb devices -l
 
       - name: Install App and Run Tests
         run: |
