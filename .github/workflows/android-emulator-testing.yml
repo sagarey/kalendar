@@ -164,5 +164,5 @@ jobs:
           echo "| 英文界面 | 中文界面 | 深色模式 |  |  |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
           echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> | <img alt=\"占位\" src=\"${URL_PH}\" style=\"width:100%;height:1px;opacity:0;\" /> | <img alt=\"占位\" src=\"${URL_PH}\" style=\"width:100%;height:1px;opacity:0;\" /> |" >> $GITHUB_STEP_SUMMARY
-          echo "| [📄 布局信息](${URL_LAYOUT_EN}) | [📄 布局信息](${URL_LAYOUT_ZH}) | [📄 布局信息](${URL_LAYOUT_DARK}) | | |" >> $GITHUB_STEP_SUMMARY
+          echo "| <a href=\"${URL_LAYOUT_EN}\" download=\"layout_en.xml\">📄 下载布局</a> | <a href=\"${URL_LAYOUT_ZH}\" download=\"layout_zh.xml\">📄 下载布局</a> | <a href=\"${URL_LAYOUT_DARK}\" download=\"layout_dark.xml\">📄 下载布局</a> | | |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
