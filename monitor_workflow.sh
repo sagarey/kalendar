@@ -8,7 +8,7 @@ echo "=========================================="
 
 # 获取最新的 workflow run
 get_latest_run() {
-    gh run list --workflow="android-emulator-testing.yml" --limit=1 --json status,conclusion,url,createdAt,displayTitle
+    gh run list --workflow=183355385 --limit=1 --json status,conclusion,url,createdAt,displayTitle
 }
 
 # 格式化时间
@@ -21,7 +21,7 @@ while true; do
     # 清屏
     clear
     
-    echo "🤖 Android APK Build & Test - 实时监控"
+    echo "🤖 Android Emulator Testing - 实时监控"
     echo "=========================================="
     echo "⏰ $(date '+%Y-%m-%d %H:%M:%S')"
     echo ""

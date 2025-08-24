@@ -5,22 +5,25 @@ url: "https://sagarey.github.io"
 baseurl: "/kalendar"
 
 # Markdown 设置
-markdown: GFM
+markdown: kramdown
 highlighter: rouge
-gfm_quirks: paragraph_end
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
 
 # 插件
 plugins:
   - jekyll-github-metadata
   - jekyll-sitemap
+  - jekyll-feed
 
-# 主题
-theme: minima
+# 主题设置
+remote_theme: pages-themes/minimal@v0.2.0
 
 # 包含的文件
 include:
   - "*.md"
-  - "*.html"
+  - "*.html" 
   - "*.png"
   - "*.xml"
 
@@ -34,11 +37,16 @@ exclude:
   - Gemfile.lock
   - node_modules/
   - vendor/
+  - "*.sh"
 
 # 默认设置
 defaults:
   - scope:
       path: ""
       type: "pages"
+    values:
+      layout: "default"
+  - scope:
+      path: "*.md"
     values:
       layout: "default"
