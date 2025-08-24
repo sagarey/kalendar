@@ -32,6 +32,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      - name: Add AI Analysis Task to Cursor Rules
+        run: |
+          # 添加 AI 分析预设任务
+          echo "" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "### 提交分析任务" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "  - 使用 mobile-mcp 工具连接到 Android 模拟器进行实时交互，获取实时的界面元素信息和布局结构" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "  - 重点场景、步骤可以截图，并集合无障碍的布局信息等给出截图的分析" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "  - 评估提交信息中提到的功能实现" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "  - 生成专业的 markdown 格式中文质量分析报告" >> .cursor/rules/kalendar-cursor-rule.mdc
+          echo "" >> .cursor/rules/kalendar-cursor-rule.mdc
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -78,7 +89,7 @@ jobs:
       - name: High-Performance Emulator Test And AI Analysis
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@v2 # TODO 后续改为自己控制的 adb 任务, 保持一样的 AVD 配置优化等
         with:
           api-level: ${{ env.API_LEVEL }}
           target: default
@@ -120,7 +131,7 @@ jobs:
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
             # AI 分析
-            cursor-agent -pf "作为Android应用质量专家，请用中文分析这个日历应用的测试结果：
+            cursor-agent -pf '作为Android应用质量专家，请用中文分析这个日历应用的测试结果：
 
             **重要：你现在有mobile-mcp工具可用，可以直接与Android模拟器交互！**
 
@@ -146,7 +157,7 @@ jobs:
             - 混搭关键截图、emoji 等，优化格式，让报告更生动
             - 如果mobile-mcp可用，展示实时交互测试结果
 
-            请生成一份专业的中文质量分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+            请生成一份专业的中文质量分析 markdown 格式的报告。' --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
