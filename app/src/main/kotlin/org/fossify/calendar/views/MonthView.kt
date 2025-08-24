@@ -30,6 +30,12 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
         private const val BG_CORNER_RADIUS = 8f
         private const val EVENT_DOT_COLUMN_COUNT = 3
         private const val EVENT_DOT_ROW_COUNT = 1
+        
+        // 农历文字相关常量
+        private const val LUNAR_TEXT_SIZE_RATIO = 0.75f
+        private const val LUNAR_TEXT_ALPHA_CURRENT_MONTH = 0.8f
+        private const val LUNAR_TEXT_ALPHA_OTHER_MONTH = 0.6f
+        private const val LUNAR_TEXT_SPACING_RATIO = 0.2f
     }
 
     private var textPaint: Paint
@@ -269,14 +275,18 @@ class MonthView(context: Context, attrs: AttributeSet, defStyle: Int) : View(con
                             val lunarText = lunarDate.getDisplayText()
                             if (lunarText.isNotEmpty()) {
                                 val lunarPaint = Paint(textPaint).apply {
-                                    textSize = textPaint.textSize * 0.75f  // 提升字体大小从0.6f到0.75f
+                                    // 提升字体大小从0.6f到0.75f
+                                    textSize = textPaint.textSize * LUNAR_TEXT_SIZE_RATIO
                                     color = if (day.isThisMonth) {
-                                        textColor.adjustAlpha(0.8f)  // 提高透明度从MEDIUM_ALPHA到0.8f
+                                        // 提高透明度从MEDIUM_ALPHA到0.8f
+                                        textColor.adjustAlpha(LUNAR_TEXT_ALPHA_CURRENT_MONTH)
                                     } else {
-                                        textColor.adjustAlpha(0.6f)  // 提高透明度从LOWER_ALPHA到0.6f
+                                        // 提高透明度从LOWER_ALPHA到0.6f
+                                        textColor.adjustAlpha(LUNAR_TEXT_ALPHA_OTHER_MONTH)
                                     }
                                 }
-                                val lunarTextY = textY + lunarPaint.textSize + (lunarPaint.textSize * 0.2f)
+                                val lunarTextY = textY + lunarPaint.textSize + 
+                                    (lunarPaint.textSize * LUNAR_TEXT_SPACING_RATIO)
                                 canvas.drawText(lunarText, xPosCenter, lunarTextY, lunarPaint)
                             }
                         }
