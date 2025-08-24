@@ -110,7 +110,7 @@ jobs:
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
-          cursor-agent -p "作为Android应用质量专家，请分析这个日历应用的测试结果：
+          cursor-agent -p "作为Android应用质量专家，请用中文分析这个日历应用的测试结果：
 
           **分析内容：**
           1. 检查截图文件(calendar_screenshot*.png)的UI设计质量
@@ -120,13 +120,15 @@ jobs:
           5. 评估多语言支持(中英文)的质量
 
           **输出要求：**
-          - 使用markdown格式
+          - 全程使用中文回答
+          - 采用专业但易懂的表达方式
           - 包含具体的技术指标和文件大小分析
-          - 提供UI/UX改进建议
-          - 给出1-10分的质量评分和详细理由
-          - 突出应用的亮点功能
+          - 提供实用的UI/UX改进建议
+          - 给出1-10分的质量评分和详细评分理由
+          - 突出应用的技术亮点和用户体验优势
+          - 使用emoji和格式化让报告更生动
 
-          请生成专业的质量分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+          请生成一份专业的中文质量分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
@@ -141,27 +143,62 @@ jobs:
           cp calendar_layout_dark.xml public/calendar_layout_dark_${{ github.run_id }}.xml
           cp .github/workflows/placeholder_1080x1.png public/placeholder_1080x1_${{ github.run_id }}.png
           
-          # 创建 AI 分析报告页面
-          cat > public/analysis_${{ github.run_id }}.md << 'EOF'
-          ---
-          layout: default
-          title: "AI Quality Analysis Report #${{ github.run_id }}"
-          description: "AI-powered analysis of Android calendar app testing results"
-          date: ${{ github.run_number }}
-          ---
-          
-          # 🤖 AI Quality Analysis Report
-          
-          **Run ID:** ${{ github.run_id }}  
-          **Date:** $(date '+%Y-%m-%d %H:%M:%S UTC')  
-          **Workflow:** Android Emulator Testing
-          
-          ---
-          
+          # 创建 AI 分析报告页面 (固定文件名)
+          cat > public/ai_analysis.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="zh-CN">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>AI 质量分析报告 - Kalendar</title>
+              <style>
+                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f8f9fa; }
+                  .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #007bff; padding-bottom: 20px; }
+                  .meta { background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+                  .content { margin-top: 20px; }
+                  h1 { color: #007bff; margin-bottom: 10px; }
+                  h2 { color: #495057; border-bottom: 1px solid #dee2e6; padding-bottom: 5px; }
+                  .btn { display: inline-block; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
+                  .btn:hover { background: #0056b3; }
+                  pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <div class="header">
+                      <h1>🤖 AI 质量分析报告</h1>
+                      <p>Kalendar Android 日历应用智能分析</p>
+                  </div>
+                  
+                  <div class="meta">
+                      <strong>运行编号:</strong> ${{ github.run_id }}<br>
+                      <strong>生成时间:</strong> $(date '+%Y年%m月%d日 %H:%M:%S UTC')<br>
+                      <strong>工作流:</strong> Android Emulator Testing<br>
+                      <strong>分析引擎:</strong> Cursor AI Agent
+                  </div>
+                  
+                  <div style="text-align: center; margin: 20px 0;">
+                      <a href="index.html" class="btn">🏠 返回主页</a>
+                      <a href="calendar_layout_${{ github.run_id }}.xml" class="btn">📄 布局文件</a>
+                  </div>
+                  
+                  <div class="content">
           EOF
           
-          # 添加分析内容
-          cat cursor_analysis_report.md >> public/analysis_${{ github.run_id }}.md
+          # 将 AI 分析内容转换为 HTML 格式并添加
+          echo "<h2>📊 分析内容</h2>" >> public/ai_analysis.html
+          echo "<pre>" >> public/ai_analysis.html
+          cat cursor_analysis_report.md >> public/ai_analysis.html
+          echo "</pre>" >> public/ai_analysis.html
+          
+          # 关闭 HTML 标签
+          cat >> public/ai_analysis.html << 'EOF'
+                  </div>
+              </div>
+          </body>
+          </html>
+          EOF
           
           # 复制 Jekyll 配置
           cp _config.yml public/
@@ -193,7 +230,7 @@ jobs:
               </div>
               
               <div class="links">
-                  <a href="analysis_${{ github.run_id }}.html" class="btn">📊 Latest AI Analysis Report</a>
+                  <a href="ai_analysis.html" class="btn">📊 最新 AI 分析报告</a>
               </div>
               
               <h2>📸 Application Screenshots</h2>
@@ -268,7 +305,7 @@ jobs:
           URL_LAYOUT_EN="${{ steps.deployment.outputs.page_url }}calendar_layout_en_${{ github.run_id }}.xml"
           URL_LAYOUT_ZH="${{ steps.deployment.outputs.page_url }}calendar_layout_${{ github.run_id }}.xml"
           URL_LAYOUT_DARK="${{ steps.deployment.outputs.page_url }}calendar_layout_dark_${{ github.run_id }}.xml"
-          URL_ANALYSIS="${{ steps.deployment.outputs.page_url }}analysis_${{ github.run_id }}.html"
+          URL_ANALYSIS="${{ steps.deployment.outputs.page_url }}ai_analysis.html"
           URL_MAIN="${{ steps.deployment.outputs.page_url }}"
           URL_PH="${{ steps.deployment.outputs.page_url }}placeholder_1080x1_${{ github.run_id }}.png"
           
