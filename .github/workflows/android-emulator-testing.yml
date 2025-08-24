@@ -60,32 +60,11 @@ jobs:
 
       - name: Install Android System Image
         run: |
-          # 安装 Android API 34 系统镜像 (使用 default target 对应的镜像)
+          # 安装 Android API 34 系统镜像
           echo "安装 Android API ${{ env.API_LEVEL }} 系统镜像..."
-          
-          # 检查可用的系统镜像
-          echo "=== 检查可用的系统镜像 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "system-images;android-${{ env.API_LEVEL }}" | head -5
-          
-          # 安装系统镜像和必要组件
-          echo "=== 安装系统镜像 ==="
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "system-images;android-${{ env.API_LEVEL }};default;x86_64"
-          INSTALL_RESULT=$?
-          
-          if [ $INSTALL_RESULT -ne 0 ]; then
-            echo "❌ default 镜像安装失败，检查错误..."
-            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "system-images;android-${{ env.API_LEVEL }}"
-            exit 1
-          fi
-          
-          echo "=== 安装平台工具和模拟器 ==="
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platform-tools"
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "emulator"
-          
-          # 验证安装
-          echo "=== 验证系统镜像安装 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | grep "system-images;android-${{ env.API_LEVEL }}"
-          
           echo "✅ 系统镜像安装完成"
 
       - name: Install Cursor CLI
@@ -123,23 +102,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
           
-          # 检查和设置 AVD 路径
-          echo "=== 检查 AVD 相关环境变量和路径 ==="
-          echo "HOME: $HOME"
-          echo "ANDROID_AVD_HOME: $ANDROID_AVD_HOME"
-          echo "当前用户: $(whoami)"
-          
           # 确保 AVD 目录存在
           mkdir -p "$ANDROID_AVD_HOME"
-          ls -la "$HOME/.config/.android/" || echo "/.config/.android/ 目录不存在"
-          ls -la "$HOME/.android/" || echo "/.android/ 目录不存在"
           
-          # 创建 AVD (Android Virtual Device) - 与原配置对齐
+          # 创建 AVD
           echo "正在创建 Android 模拟器..."
-          echo "=== 检查可用的系统镜像 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | grep "system-images;android-${{ env.API_LEVEL }}"
-          
-          echo "=== 创建 AVD ==="
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
             --force \
             --name test_emulator \
@@ -148,25 +115,15 @@ jobs:
             --device "pixel_6"
           
           # 检查 AVD 创建结果
-          AVD_CREATE_RESULT=$?
-          if [ $AVD_CREATE_RESULT -ne 0 ]; then
-            echo "❌ AVD 创建失败，退出码: $AVD_CREATE_RESULT"
-            echo "=== 检查系统镜像安装状态 ==="
-            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | grep "system-images"
+          if [ $? -ne 0 ]; then
+            echo "❌ AVD 创建失败"
             exit 1
           fi
           
-          echo "=== 验证 AVD 创建结果 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
+          echo "✅ AVD 创建成功"
           
-          # 检查 AVD 文件是否存在
-          echo "=== 检查 AVD 文件位置 ==="
-          find /home/runner -name "test_emulator.ini" -type f 2>/dev/null || echo "未找到 test_emulator.ini"
-          find /home/runner -name "test_emulator.avd" -type d 2>/dev/null || echo "未找到 test_emulator.avd 目录"
-          
-          # 启动模拟器（后台运行） - 参数与原配置完全对齐
+          # 启动模拟器
           echo "正在启动 Android 模拟器..."
-          echo "模拟器启动参数: -avd test_emulator -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -netdelay none -netspeed full -cores 4 -memory 8192 -camera-back none -camera-front none -wipe-data"
           
           # 使用环境变量确保模拟器找到正确的 AVD 路径
           export ANDROID_AVD_HOME="/home/runner/.config/.android/avd"
@@ -178,103 +135,36 @@ jobs:
             -camera-back none -camera-front none \
             -wipe-data > emulator.log 2>&1 &
           
-          EMULATOR_PID=$!
-          echo "模拟器进程已启动，PID: $EMULATOR_PID"
+          echo "模拟器进程已启动，PID: $!"
           
-          # 显示模拟器启动日志（前几行）
-          sleep 3
-          echo "=== 模拟器启动日志（前20行）==="
-          head -20 emulator.log || echo "暂无日志"
+          # 等待设备连接
+          echo "等待设备连接..."
+          timeout 30 adb wait-for-device
           
-          # 等待模拟器启动并准备就绪
-          echo "等待模拟器启动完成..."
-          echo "超时设置: 60秒"
-          
-          # 先检查进程是否还在运行
-          if ! ps -p $EMULATOR_PID > /dev/null; then
-            echo "❌ 模拟器进程已退出，检查启动日志..."
-            echo "=== 模拟器启动失败日志 ==="
+          if [ $? -ne 0 ]; then
+            echo "❌ 设备连接超时"
             cat emulator.log
             exit 1
           fi
           
-          # 使用更长的超时时间并添加进度指示
-          WAIT_COUNT=0
-          timeout 60 bash -c 'while ! adb devices | grep -q "device$"; do echo "等待设备连接中... ($((++WAIT_COUNT))秒)"; sleep 1; done'
-          WAIT_RESULT=$?
+          echo "✅ 设备已连接"
           
-          # 检查 adb wait-for-device 的结果
-          if [ $WAIT_RESULT -eq 0 ]; then
-            echo "✅ 设备已检测到"
-            adb devices -l
-          else
-            echo "❌ 等待设备超时 (${WAIT_RESULT})，显示诊断信息..."
-            echo "=== ADB 服务状态 ==="
-            adb version
-            adb kill-server
-            adb start-server
-            adb devices -l
-            
-            echo "=== 模拟器进程状态 ==="
-            ps aux | grep -E "(emulator|qemu)" | head -10
-            
-            echo "=== 完整模拟器日志 ==="
-            cat emulator.log
-            
-            echo "=== 系统资源使用情况 ==="
-            free -h
-            df -h
-            
-            exit 1
-          fi
-          
-          # 等待系统完全启动
+          # 等待系统启动完成
           echo "等待系统启动完成..."
-          BOOT_TIMEOUT=60
-          BOOT_COUNT=0
-          while [ "`adb shell getprop sys.boot_completed 2>/dev/null`" != "1" ]; do
-            BOOT_COUNT=$((BOOT_COUNT + 1))
-            echo "系统启动中... (第${BOOT_COUNT}次检查)"
-            
-            # 显示启动进度
-            BOOT_PROGRESS=$(adb shell getprop sys.boot_progress.system_run 2>/dev/null || echo "unknown")
-            echo "启动进度: $BOOT_PROGRESS"
-            
-            sleep 5
-            
-            # 防止无限循环
-            if [ $BOOT_COUNT -gt $((BOOT_TIMEOUT / 5)) ]; then
-              echo "❌ 系统启动超时，显示诊断信息..."
-              echo "=== 系统属性 ==="
-              adb shell getprop | grep boot
-              echo "=== 最新模拟器日志 ==="
-              tail -30 emulator.log
-              exit 1
-            fi
-          done
+          timeout 30 bash -c 'while [ "$(adb shell getprop sys.boot_completed 2>/dev/null)" != "1" ]; do sleep 2; done'
           
-          echo "✅ 系统启动完成"
+          if [ $? -ne 0 ]; then
+            echo "❌ 系统启动超时"
+            exit 1
+          fi
           
-          # 显示系统信息
-          echo "=== 系统信息 ==="
-          echo "Android 版本: $(adb shell getprop ro.build.version.release)"
-          echo "API 级别: $(adb shell getprop ro.build.version.sdk)"
-          echo "设备型号: $(adb shell getprop ro.product.model)"
-          echo "CPU 架构: $(adb shell getprop ro.product.cpu.abi)"
-          
-          # 禁用动画以提高测试稳定性
-          echo "配置模拟器设置..."
+          # 配置模拟器设置
           adb shell settings put global window_animation_scale 0.0
           adb shell settings put global transition_animation_scale 0.0
           adb shell settings put global animator_duration_scale 0.0
-          
-          # 禁用拼写检查
           adb shell settings put secure spell_checker_enabled 0
           
-          echo "✅ Android 模拟器启动完成并已配置"
-          echo "模拟器进程 PID: $EMULATOR_PID"
-          echo "可用设备列表:"
-          adb devices -l
+          echo "✅ Android 模拟器启动完成"
 
       - name: Install App and Run Tests
         run: |
