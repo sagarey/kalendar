@@ -146,11 +146,9 @@ jobs:
           URL_EN="${{ steps.deployment.outputs.page_url }}calendar_screenshot_en_${{ github.run_id }}.png"
           URL_ZH="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
           URL_DARK="${{ steps.deployment.outputs.page_url }}calendar_screenshot_dark_${{ github.run_id }}.png"
-          SVG_PLACEHOLDER=$(printf "<svg xmlns='http://www.w3.org/2000/svg' width='1080' height='1'/>" | base64 -w 0)
-          PLACEHOLDER="data:image/svg+xml;base64,${SVG_PLACEHOLDER}"
           echo "## 📱 应用截图" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| 英文界面 | 中文界面 | 深色模式 |  |  |" >> $GITHUB_STEP_SUMMARY
           echo "| --- | --- | --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> | <img alt=\"占位\" src=\"${PLACEHOLDER}\" style=\"width:100%;height:auto;\" /> | <img alt=\"占位\" src=\"${PLACEHOLDER}\" style=\"width:100%;height:auto;\" /> |" >> $GITHUB_STEP_SUMMARY
+          echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> | <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1080 1' width='100%' height='1'></svg> | <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1080 1' width='100%' height='1'></svg> |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
