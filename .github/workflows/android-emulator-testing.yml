@@ -201,7 +201,7 @@ jobs:
         run: |
           # AI 分析
           echo "开始 AI 分析..."
-          cursor-agent -f -p "测试应用 org.fossify.calendar.debug 已完成安装且当前就是打开应用的状态, 使用 adb uiautomator 等工具获取布局、截图等信息进行分析，模拟打开应用的设置，记录每步带截图（截图存储命名为 report_screencap_xx.png, xx 为步骤，引用到报告中直接使用 /report_screencap_xx.png 路径）的详细 html 报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.html
+          cursor-agent -f -p "测试应用 org.fossify.calendar.debug 已完成安装且当前就是打开应用的状态, 使用 adb uiautomator 等工具获取布局、截图等信息进行分析，模拟打开应用的设置，记录每步带截图（截图存储命名为 report_screencap_xx.png, xx 为步骤，引用到报告中直接使用 /report_screencap_xx.png 路径）的详细单文件 html 报告。" --model claude-4-sonnet --output-format html > index.html
           echo "✅ AI 分析完成"
 
       - name: Stop Emulator
@@ -217,185 +217,22 @@ jobs:
         run: |
           mkdir -p public
           
-          # 获取当前时间
-          CURRENT_TIME=$(date '+%Y年%m月%d日 %H:%M:%S')
+          # 将 cursor-agent 生成的 HTML 报告作为首页
+          cp index.html public/
           
-          # 复制截图和布局文件
-          cp calendar_screenshot_en.png public/calendar_screenshot_en_${{ github.run_id }}.png
-          cp calendar_screenshot.png public/calendar_screenshot_${{ github.run_id }}.png
-          cp calendar_screenshot_dark.png public/calendar_screenshot_dark_${{ github.run_id }}.png
-          cp calendar_layout_en.xml public/calendar_layout_en_${{ github.run_id }}.xml
-          cp calendar_layout.xml public/calendar_layout_${{ github.run_id }}.xml
-          cp calendar_layout_dark.xml public/calendar_layout_dark_${{ github.run_id }}.xml
-          cp .github/workflows/placeholder_1080x1.png public/placeholder_1080x1_${{ github.run_id }}.png
+          # 复制所有报告相关的截图文件
+          cp report_screencap_*.png public/ 2>/dev/null || echo "没有找到 report_screencap_*.png 文件"
           
-          # 创建 AI 分析报告页面 (固定文件名)
-          cat > public/ai_analysis.html << EOF
-          <!DOCTYPE html>
-          <html lang="zh-CN">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>AI 质量分析报告 - Kalendar</title>
-              <style>
-                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f8f9fa; }
-                  .container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                  .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #007bff; padding-bottom: 20px; }
-                  .meta { background: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-                  .content { margin-top: 20px; }
-                  h1 { color: #007bff; margin-bottom: 10px; }
-                  h2 { color: #495057; border-bottom: 1px solid #dee2e6; padding-bottom: 5px; }
-                  .btn { display: inline-block; padding: 8px 16px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; margin: 5px; }
-                  .btn:hover { background: #0056b3; }
-                  pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; }
-                  .markdown-content { line-height: 1.8; }
-                  .markdown-content h1 { color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-                  .markdown-content h2 { color: #495057; border-bottom: 1px solid #dee2e6; padding-bottom: 5px; margin-top: 30px; }
-                  .markdown-content h3 { color: #6c757d; margin-top: 25px; }
-                  .markdown-content h4 { color: #868e96; margin-top: 20px; }
-                  .markdown-content strong { color: #495057; font-weight: 600; }
-                  .markdown-content li { margin: 5px 0; }
-                  .markdown-content table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-                  .markdown-content th, .markdown-content td { padding: 8px 12px; border: 1px solid #dee2e6; text-align: left; }
-                  .markdown-content th { background: #f8f9fa; font-weight: 600; }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <div class="header">
-                      <h1>🤖 AI 质量分析报告</h1>
-                      <p>Kalendar Android 日历应用智能分析</p>
-                  </div>
-                  
-                  <div class="meta">
-                      <strong>运行编号:</strong> ${{ github.run_id }}<br>
-                      <strong>生成时间:</strong> ${CURRENT_TIME}<br>
-                      <strong>工作流:</strong> Android Emulator Testing<br>
-                      <strong>分析引擎:</strong> Cursor AI Agent
-                  </div>
-                  
-                  <div style="text-align: center; margin: 20px 0;">
-                      <a href="index.html" class="btn">🏠 返回主页</a>
-                      <a href="calendar_layout_${{ github.run_id }}.xml" class="btn">📄 布局文件</a>
-                  </div>
-                  
-                  <div class="content">
-          EOF
+          # 复制基础截图和布局文件（保持兼容性）
+          cp calendar_screenshot_en.png public/ 2>/dev/null || echo "没有找到 calendar_screenshot_en.png"
+          cp calendar_screenshot.png public/ 2>/dev/null || echo "没有找到 calendar_screenshot.png"
+          cp calendar_screenshot_dark.png public/ 2>/dev/null || echo "没有找到 calendar_screenshot_dark.png"
+          cp calendar_layout_en.xml public/ 2>/dev/null || echo "没有找到 calendar_layout_en.xml"
+          cp calendar_layout.xml public/ 2>/dev/null || echo "没有找到 calendar_layout.xml"
+          cp calendar_layout_dark.xml public/ 2>/dev/null || echo "没有找到 calendar_layout_dark.xml"
           
-          # 将 Markdown 转换为 HTML 并添加
-          echo "<h2>📊 分析内容</h2>" >> public/ai_analysis.html
-          echo "<div class='markdown-content'>" >> public/ai_analysis.html
-          
-          # 简单的 Markdown 到 HTML 转换
-          sed -e 's/^# \(.*\)/<h1>\1<\/h1>/' \
-              -e 's/^## \(.*\)/<h2>\1<\/h2>/' \
-              -e 's/^### \(.*\)/<h3>\1<\/h3>/' \
-              -e 's/^#### \(.*\)/<h4>\1<\/h4>/' \
-              -e 's/^\*\*\(.*\)\*\*/<strong>\1<\/strong>/g' \
-              -e 's/^\*\(.*\)\*/<em>\1<\/em>/g' \
-              -e 's/^- \(.*\)/<li>\1<\/li>/' \
-              -e 's/^$/<br\/>/' \
-              cursor_analysis_report.md >> public/ai_analysis.html
-          
-          echo "</div>" >> public/ai_analysis.html
-          
-          # 关闭 HTML 标签
-          cat >> public/ai_analysis.html << 'EOF'
-                  </div>
-              </div>
-          </body>
-          </html>
-          EOF
-          
-          # 复制 Jekyll 配置
-          cp _config.yml public/
-          
-          # 创建中文主页 HTML
-          cat > public/index.html << EOF
-          <!DOCTYPE html>
-          <html lang="zh-CN">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Kalendar - Android 日历应用</title>
-              <style>
-                  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; line-height: 1.6; background: #f8f9fa; }
-                  .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 15px rgba(0,0,0,0.1); }
-                  .header { text-align: center; margin-bottom: 40px; border-bottom: 3px solid #007bff; padding-bottom: 20px; }
-                  .header h1 { color: #007bff; margin-bottom: 10px; font-size: 2.5em; }
-                  .header p { color: #6c757d; font-size: 1.2em; }
-                  .screenshots { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 25px; margin: 40px 0; }
-                  .screenshot { text-align: center; background: #f8f9fa; padding: 20px; border-radius: 10px; border: 1px solid #dee2e6; }
-                  .screenshot h3 { color: #495057; margin-bottom: 15px; font-size: 1.3em; }
-                  .screenshot img { max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.3s; }
-                  .screenshot img:hover { transform: scale(1.02); }
-                  .screenshot p { margin-top: 15px; }
-                  .screenshot a { color: #007bff; text-decoration: none; font-weight: 500; }
-                  .screenshot a:hover { text-decoration: underline; }
-                  .links { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 30px 0; }
-                  .btn { padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 8px; font-weight: 500; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,123,255,0.3); }
-                  .btn:hover { background: #0056b3; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,123,255,0.4); }
-                  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 30px 0; }
-                  .stat { text-align: center; background: #e9ecef; padding: 20px; border-radius: 8px; }
-                  .stat-number { font-size: 2em; font-weight: bold; color: #007bff; }
-                  .stat-label { color: #6c757d; font-size: 0.9em; margin-top: 5px; }
-                  .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #6c757d; }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <div class="header">
-                      <h1>📱 Kalendar 日历应用</h1>
-                      <p>AI 驱动的 Android 日历应用质量分析平台</p>
-                  </div>
-                  
-                  <div class="links">
-                      <a href="ai_analysis.html" class="btn">🤖 查看 AI 分析报告</a>
-                  </div>
-                  
-                  <div class="stats">
-                      <div class="stat">
-                          <div class="stat-number">9.2</div>
-                          <div class="stat-label">综合评分 (满分10分)</div>
-                      </div>
-                      <div class="stat">
-                          <div class="stat-number">40+</div>
-                          <div class="stat-label">支持语言数量</div>
-                      </div>
-                      <div class="stat">
-                          <div class="stat-number">3</div>
-                          <div class="stat-label">主题模式</div>
-                      </div>
-                  </div>
-                  
-                  <h2 style="text-align: center; color: #495057; margin-top: 40px;">📸 应用界面展示</h2>
-                  <div class="screenshots">
-                      <div class="screenshot">
-                          <h3>🌍 英文界面</h3>
-                          <img src="calendar_screenshot_en_${{ github.run_id }}.png" alt="英文界面">
-                          <p><a href="calendar_layout_en_${{ github.run_id }}.xml">📄 查看布局文件</a></p>
-                      </div>
-                      <div class="screenshot">
-                          <h3>🇨🇳 中文界面</h3>
-                          <img src="calendar_screenshot_${{ github.run_id }}.png" alt="中文界面">
-                          <p><a href="calendar_layout_${{ github.run_id }}.xml">📄 查看布局文件</a></p>
-                      </div>
-                      <div class="screenshot">
-                          <h3>🌙 暗黑模式</h3>
-                          <img src="calendar_screenshot_dark_${{ github.run_id }}.png" alt="暗黑模式">
-                          <p><a href="calendar_layout_dark_${{ github.run_id }}.xml">📄 查看布局文件</a></p>
-                      </div>
-                  </div>
-                  
-                  <div class="footer">
-                      <p>🚀 由 GitHub Actions 自动生成</p>
-                      <p>运行编号: ${{ github.run_id }} | 生成时间: ${CURRENT_TIME}</p>
-                      <p>💡 基于 AI 智能分析，持续改进应用质量</p>
-                  </div>
-              </div>
-          </body>
-          </html>
-          EOF
+          # 复制 Jekyll 配置（如果存在）
+          cp _config.yml public/ 2>/dev/null || echo "没有找到 _config.yml"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -410,7 +247,8 @@ jobs:
           echo "- **构建状态**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
           echo "- **应用安装**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
           echo "- **应用启动**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- **截图生成**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- **AI 分析**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
+          echo "- **报告生成**: 成功 ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 测试环境" >> $GITHUB_STEP_SUMMARY
           echo "- **Android 版本**: API 34 (Android 14)" >> $GITHUB_STEP_SUMMARY
@@ -434,28 +272,17 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-      - name: Append image link to Summary
+      - name: Append report link to Summary
         run: |
-          URL_EN="${{ steps.deployment.outputs.page_url }}calendar_screenshot_en_${{ github.run_id }}.png"
-          URL_ZH="${{ steps.deployment.outputs.page_url }}calendar_screenshot_${{ github.run_id }}.png"
-          URL_DARK="${{ steps.deployment.outputs.page_url }}calendar_screenshot_dark_${{ github.run_id }}.png"
-          URL_LAYOUT_EN="${{ steps.deployment.outputs.page_url }}calendar_layout_en_${{ github.run_id }}.xml"
-          URL_LAYOUT_ZH="${{ steps.deployment.outputs.page_url }}calendar_layout_${{ github.run_id }}.xml"
-          URL_LAYOUT_DARK="${{ steps.deployment.outputs.page_url }}calendar_layout_dark_${{ github.run_id }}.xml"
-          URL_ANALYSIS="${{ steps.deployment.outputs.page_url }}ai_analysis.html"
           URL_MAIN="${{ steps.deployment.outputs.page_url }}"
-          URL_PH="${{ steps.deployment.outputs.page_url }}placeholder_1080x1_${{ github.run_id }}.png"
           
-          echo "## 🤖 AI Quality Analysis Report" >> $GITHUB_STEP_SUMMARY
+          echo "## 🤖 AI 质量分析报告" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌟 [**查看完整的 AI 分析报告**](${URL_ANALYSIS}) (Markdown 渲染版本)" >> $GITHUB_STEP_SUMMARY
+          echo "🌟 [**查看完整的 AI 分析报告**](${URL_MAIN}) - 由 Cursor AI Agent 自动生成" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🏠 [**项目主页**](${URL_MAIN}) - 包含所有截图和技术细节" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## 📱 应用截图预览" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 英文界面 | 中文界面 | 深色模式 |" >> $GITHUB_STEP_SUMMARY
-          echo "| --- | --- | --- |" >> $GITHUB_STEP_SUMMARY
-          echo "| <img alt=\"英文界面\" src=\"${URL_EN}\" style=\"width:100%;height:auto;\" /> | <img alt=\"中文界面\" src=\"${URL_ZH}\" style=\"width:100%;height:auto;\" /> | <img alt=\"深色模式\" src=\"${URL_DARK}\" style=\"width:100%;height:auto;\" /> |" >> $GITHUB_STEP_SUMMARY
-          echo "| [📄 布局信息](${URL_LAYOUT_EN}) | [📄 布局信息](${URL_LAYOUT_ZH}) | [📄 布局信息](${URL_LAYOUT_DARK}) |" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **报告内容包括:**" >> $GITHUB_STEP_SUMMARY
+          echo "- 应用功能分析和测试结果" >> $GITHUB_STEP_SUMMARY
+          echo "- 界面截图和布局分析" >> $GITHUB_STEP_SUMMARY
+          echo "- 用户体验评估" >> $GITHUB_STEP_SUMMARY
+          echo "- 问题发现和改进建议" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
