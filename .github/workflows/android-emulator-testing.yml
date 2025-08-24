@@ -49,6 +49,20 @@ jobs:
           curl https://cursor.com/install -fsS | bash
           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
 
+      - name: Setup Node.js for mobile-mcp
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install mobile-mcp
+        run: |
+          # 全局安装 mobile-mcp
+          npm install -g @mobilenext/mobile-mcp@latest
+          
+          # 验证安装
+          npx @mobilenext/mobile-mcp --version || echo "mobile-mcp 安装完成"
+
       - name: Build APK with Optimizations
         run: |
           # KVM 一步到位配置
@@ -106,27 +120,35 @@ jobs:
             adb exec-out screencap -p > calendar_screenshot_dark.png
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
-      - name: AI Quality Analysis
+      - name: AI Quality Analysis with Mobile MCP
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
           cursor-agent -p "作为Android应用质量专家，请用中文分析这个日历应用的测试结果：
 
+          **重要：你现在有mobile-mcp工具可用，可以直接与Android模拟器交互！**
+
           **分析内容：**
-          1. 检查截图文件(calendar_screenshot*.png)的UI设计质量
-          2. 分析布局文件(calendar_layout*.xml)的结构合理性  
-          3. 评估中文本地化效果和农历功能实现
-          4. 检查暗黑模式支持的完整性
-          5. 评估多语言支持(中英文)的质量
+          1. 使用mobile-mcp工具连接到当前运行的Android模拟器
+          2. 截取当前应用界面并分析UI设计质量
+          3. 通过mobile-mcp获取实时的界面元素信息和布局结构
+          4. 重点场景、步骤可以截图，并集合无障碍的布局信息等给出截图的分析
+          5. 检查本地文件中的截图(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)
+          6. 评估中文本地化效果和农历功能实现
+          7. 检查暗黑模式支持的完整性
+          8. 评估多语言支持(中英文)的质量
+          9. 测试应用的基本交互功能(如果可能的话)
 
           **输出要求：**
           - 全程使用中文回答
           - 采用专业但易懂的表达方式
           - 包含具体的技术指标和文件大小分析
+          - 结合mobile-mcp的实时交互分析
           - 提供实用的UI/UX改进建议
           - 给出1-10分的质量评分和详细评分理由
           - 突出应用的技术亮点和用户体验优势
-          - 使用emoji和格式化让报告更生动
+          - 混搭关键截图、emoji 等，优化格式，让报告更生动
+          - 如果mobile-mcp可用，展示实时交互测试结果
 
           请生成一份专业的中文质量分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
