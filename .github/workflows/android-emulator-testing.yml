@@ -106,7 +106,7 @@ jobs:
             adb exec-out screencap -p > calendar_screenshot_dark.png
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
-      - name: AI 质量分析
+      - name: AI Quality Analysis
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         run: |
