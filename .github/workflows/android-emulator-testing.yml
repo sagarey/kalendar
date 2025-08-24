@@ -85,17 +85,13 @@ jobs:
             # 设置应用语言为中文
             adb shell cmd locale set-app-locales org.fossify.calendar.debug --locales zh-CN
 
-            # 启动应用
+            # 启动应用并截图
             adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
-            
-            # 截图
             sleep 2
             adb exec-out screencap -p > calendar_screenshot.png
 
-            # 切换到暗黑模式并重启应用后截图
+            # 切换到暗黑模式并截图
             adb shell cmd uimode night yes
-            adb shell am force-stop org.fossify.calendar.debug
-            adb shell am start -W -n org.fossify.calendar.debug/org.fossify.calendar.activities.MainActivity
             sleep 2
             adb exec-out screencap -p > calendar_screenshot_dark.png
 
