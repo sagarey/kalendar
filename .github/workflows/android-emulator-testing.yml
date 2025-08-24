@@ -311,7 +311,7 @@ jobs:
         run: |
           # AI 分析
           echo "开始 AI 分析..."
-          cursor-agent -f -p "提交AI分析" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
+          cursor-agent -f -p "测试应用 org.fossify.calendar.debug 已完成安装且当前就是打开应用的状态, 使用 adb 工具获取布局、截图等信息进行分析，模拟打开应用的设置，记录每步带截图的详细 markdown 报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
           echo "✅ AI 分析完成"
 
       - name: Stop Emulator
