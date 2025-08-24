@@ -66,8 +66,6 @@ jobs:
           
       - name: High-Performance Emulator Test
         uses: reactivecircus/android-emulator-runner@v2
-        env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
         with:
           api-level: ${{ env.API_LEVEL }}
           target: default
@@ -108,9 +106,31 @@ jobs:
             adb exec-out screencap -p > calendar_screenshot_dark.png
             adb exec-out uiautomator dump /dev/fd/1 > calendar_layout_dark.xml
 
-            # 运行 AI 分析 (在模拟器环境内)
-            echo "正在运行 AI 分析..."
-            cursor-agent -p "分析这个Android日历应用的测试结果。检查截图文件(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)，评估应用的UI质量、中文本地化效果和暗黑模式支持。请提供简洁的 markdown 分析报告。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md || echo "AI 分析失败，但继续执行其他步骤"
+      - name: Debug File Status
+        run: |
+          echo "=== 检查当前目录文件 ==="
+          pwd
+          ls -la
+          echo ""
+          echo "=== 检查截图文件 ==="
+          ls -la calendar_screenshot*.png || echo "截图文件不存在"
+          echo ""
+          echo "=== 检查布局文件 ==="
+          ls -la calendar_layout*.xml || echo "布局文件不存在"
+          echo ""
+          echo "=== 文件大小和类型 ==="
+          file calendar_screenshot*.png || echo "无法检查截图文件类型"
+          file calendar_layout*.xml || echo "无法检查布局文件类型"
+
+      - name: Run Cursor Agent Analysis (Independent)
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: |
+          echo "=== 运行前再次检查文件 ==="
+          ls -la calendar_screenshot*.png || echo "分析前：截图文件不存在"
+          ls -la calendar_layout*.xml || echo "分析前：布局文件不存在"
+          echo ""
+          cursor-agent -p "分析这个Android日历应用的测试结果。首先列出当前目录所有文件，然后检查截图文件(calendar_screenshot*.png)和布局文件(calendar_layout*.xml)的存在性，最后评估应用的UI质量、中文本地化效果和暗黑模式支持。请详细说明找到了哪些文件，以及为什么可能找不到某些文件。" --model claude-4-sonnet --output-format text > cursor_analysis_report.md
 
       - name: Prepare Pages artifact
         run: |
