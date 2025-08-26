@@ -77,7 +77,7 @@ jobs:
           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js for mobile-mcp
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
 
