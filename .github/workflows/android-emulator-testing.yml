@@ -51,7 +51,7 @@ jobs:
           echo "" >> .cursor/rules/kalendar-cursor-rule.mdc
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'
           java-version: '17'
