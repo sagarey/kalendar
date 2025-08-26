@@ -239,7 +239,7 @@ jobs:
           cp _config.yml public/ 2>/dev/null || echo "没有找到 _config.yml"
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: public
 
